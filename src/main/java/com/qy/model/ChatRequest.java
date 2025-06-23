@@ -1,0 +1,67 @@
+package com.qy.model;
+
+import dev.langchain4j.data.message.ChatMessage;
+import lombok.Data;
+
+import java.util.List;
+
+/**
+ *  对话请求对象
+ *
+ * @author ageerle
+ * @sine 2023-04-08
+ */
+@Data
+public class ChatRequest {
+    /**
+     * 用户输入内容
+     */
+    private String content;
+
+    /**
+     * 模型名称
+     */
+    private String model;
+
+    /**
+     * 提示词
+     */
+    private String prompt;
+
+    /**
+     * 系统提示词
+     */
+    private String sysPrompt;
+
+    /**
+     * 是否开启流式对话
+     */
+    private Boolean stream = Boolean.TRUE;
+
+    /**
+     * 知识库id
+     */
+    private String kid;
+
+    /**
+     * 用户id
+     */
+    private Long userId;
+
+    /**
+     * 会话id
+     */
+    private Long sessionId;
+
+    /**
+     * 应用ID
+     */
+    private String appId;
+
+    /**
+     * 对话角色
+     */
+    private String role;
+
+    private List<ChatMessage> messages;
+}

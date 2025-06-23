@@ -1,0 +1,58 @@
+server:
+  port: 8181
+
+spring:
+  application:
+    name: qingyu-ai
+  profiles:
+    active: dev
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  # Jackson日期序列化配置（推荐）
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+
+  # Spring AI配置 - 通过Spring AI的OpenAI客户端连接DeepSeek API
+  ai:
+    openai:
+      api-key: sk-xxxxxxxxxxxxxxxxxxxxx
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
+          max-tokens: 2000
+    dash-scope:
+      api-key: sk-xxxxxxxxxxxxxxxxxxxxx
+      chat:
+        options:
+          #模型名称： qwen-plus  deepseek-v3  deepseek-r1
+          model: qwen-plus
+
+mybatis-plus:
+  configuration:
+    # 开启驼峰命名自动映射
+    map-underscore-to-camel-case: true
+    # 日志实现
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      # 主键类型: AUTO=数据库自增
+      id-type: auto
+      # 逻辑删除字段名（如果使用）
+      # logic-delete-field: is_deleted
+      # 逻辑删除值（删除后的值）
+      # logic-delete-value: 1
+      # 逻辑未删除值
+      # logic-not-delete-value: 0
+  # mapper.xml 文件位置
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 实体类扫描包路径
+  type-aliases-package: com.qy.entity
