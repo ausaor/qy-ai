@@ -12,6 +12,7 @@ import dev.langchain4j.data.message.UserMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
@@ -56,6 +57,12 @@ public class SseServiceImpl implements ISseService {
     public Flux<ChatResponse> streamMessage(Long sessionId, ChatMessageRequest request) {
         IChatService chatService = chatServiceFactory.getChatService(request.getModel());
         return chatService.streamMessage(sessionId, request);
+    }
+
+    @Override
+    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, ChatMessageRequest request) {
+        IChatService chatService = chatServiceFactory.getChatService(request.getModel());
+        return chatService.mcpChat(sessionId, request.getContent());
     }
 
     /**

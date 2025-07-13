@@ -2,13 +2,13 @@ package com.qy.controller;
 
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
-import com.qy.service.IChatService;
 import com.qy.service.ISseService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -98,5 +98,22 @@ public class ChatController {
         request.setRole(role);
 
         return sseService.sseChat(request);
+    }
+
+    @GetMapping(value = "/mcp/msg/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "MCP流式获取消息回复", description = "发送消息并流式返回回复")
+    public Flux<ServerSentEvent<String>> mcpChat(
+            @PathVariable Long sessionId,
+            @RequestParam String content,
+            @RequestParam(defaultValue = "user") String role,
+            @RequestParam String model) {
+        log.info("收到消息请求内容: {}", content);
+
+        ChatMessageRequest request = new ChatMessageRequest();
+        request.setModel(model);
+        request.setContent(content);
+        request.setRole(role);
+
+        return sseService.mcpChat(sessionId, request);
     }
 }

@@ -1,5 +1,6 @@
 package com.qy.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qy.enums.ChatModeType;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
@@ -10,6 +11,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -18,6 +20,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
@@ -40,6 +43,10 @@ public class DeepSeekChatImpl implements IChatService {
     private final ChatModel chatModel;
 
     private final OpenAiChatOptions chatOptions;
+
+    private final ChatClient chatClient;
+
+    private final ObjectMapper objectMapper;
 
     @Override
     public Flux<ChatResponse> streamMessage(Long sessionId, ChatMessageRequest request) {
@@ -188,6 +195,83 @@ public class DeepSeekChatImpl implements IChatService {
         }
 
         return emitter;
+    }
+
+    @Override
+    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, String message) {
+        StringBuilder contentBuilder = new StringBuilder();
+
+        ChatMessageRequest request = new ChatMessageRequest();
+        request.setContent(message);
+        request.setRole("user");
+
+        Prompt prompt = promptBuilder(sessionId, request);
+
+        return chatClient.prompt(prompt)
+                .user(message)
+                .stream()
+                .chatResponse()
+                .doOnNext(response -> {
+                    try {
+                        if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
+                            String content = response.getResults().get(0).getOutput().getText();
+                            if (content != null) {
+                                contentBuilder.append(content);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error getting content from response: {}", e.getMessage());
+                    }
+                })
+                .doOnComplete(() -> {
+                    // 当流完成时，打印完整的分析结果
+                    String fullContent = contentBuilder.toString();
+                    if (!fullContent.isEmpty()) {
+                        log.info("Complete mcp chat result: {}", fullContent);
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.error("Error in mcp chat: {}", e.getMessage());
+                    return Flux.empty();
+                })
+                .map(chatResponse -> ServerSentEvent.<String>builder()
+                        .data(toJson(chatResponse))
+                        .event("message")
+                        .build());
+    }
+
+    /**
+     *  构建提示词,能查询数据库关联之前的对话记录
+     *
+     * @param sessionId 会话ID
+     * @param request 请求
+     * @return 提示词
+     */
+    private Prompt promptBuilder(Long sessionId, ChatMessageRequest request) {
+        // 创建自定义选项
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(chatOptions.getModel())
+                .temperature(request.getTemperature() != null ? request.getTemperature().doubleValue() : 0.7)
+                .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : 2000)
+                .build();
+
+        // 创建消息列表
+        List<Message> messages = new ArrayList<>();
+        // 添加系统消息，定义 AI 助手的角色和行为
+        messages.add(new SystemMessage("你是一个乐于助人的AI助手，能够以对话的方式回应用户。请提供详细且准确的信息。"));
+
+        return new Prompt(messages, options);
+    }
+
+    /**
+     * 将流式回答结果转json字符串
+     *
+     * @param chatResponse 流式回答结果
+     * @return String json字符串
+     */
+    @SneakyThrows
+    public String toJson(org.springframework.ai.chat.model.ChatResponse chatResponse) {
+        return objectMapper.writeValueAsString(chatResponse);
     }
 
     @Override

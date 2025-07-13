@@ -35,6 +35,10 @@ spring:
         options:
           #模型名称： qwen-plus  deepseek-v3  deepseek-r1
           model: qwen-plus
+    mcp:
+      server:
+        enabled: true  # 启用MCP服务器
+        path: "/chat"  # MCP服务器路径
 
 mybatis-plus:
   configuration:

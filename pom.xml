@@ -31,7 +31,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-ai.version>1.0.0-M7</spring-ai.version>
+        <spring-ai.version>1.0.0-M6</spring-ai.version>
         <dashscope.version>2.4.0</dashscope.version>
     </properties>
     <dependencyManagement>
@@ -91,6 +91,19 @@
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-dashscope</artifactId>
             <version>1.0.1-beta6</version>
+        </dependency>
+
+        <!-- Spring AI MCP Server -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-mcp-server-webmvc-spring-boot-starter</artifactId>
+            <version>1.0.0-M6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-spring-boot-autoconfigure</artifactId>
+            <version>${spring-ai.version}</version>
         </dependency>
 
         <dependency>

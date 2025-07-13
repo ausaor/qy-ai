@@ -11,6 +11,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
@@ -105,6 +106,11 @@ public class QianWenAiChatServiceImpl implements IChatService {
         }
 
         return emitter;
+    }
+
+    @Override
+    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, String message) {
+        return null;
     }
 
     @Override
