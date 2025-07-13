@@ -3,57 +3,78 @@
 # QyAI 项目说明
 
 ## 项目简介
-QyAI 是一个AI聊天服务项目，旨在为用户提供与不同AI模型进行交互的能力。该项目支持流式和SSE（Server-Sent Events）消息回复，允许实时聊天体验。
+QyAI 是一个多功能 AI 对话服务平台，支持多种 AI 模型和交互模式。该项目旨在提供一个可扩展的框架，用于集成不同的 AI 服务和工具，支持流式对话和非流式对话。
 
 ## 主要功能
-- 提供流式获取AI消息回复的接口
-- 提供SSE方式获取AI消息回复的接口
-- 支持多种AI模型，包括DeepSeek和QianWen
-- 集成聊天服务工厂模式，便于扩展新AI模型
+- 支持多种 AI 模型（如 DeepSeek、QianWen）进行对话。
+- 提供流式对话接口（Flux、SSE、MCP）。
+- 支持通过工具扩展 AI 的能力，例如获取城市天气。
+- 高度可配置，适用于开发环境和生产环境。
 
 ## 技术架构
-QyAI项目基于Spring Boot框架构建，使用了Spring WebFlux和Spring Web模块来处理HTTP请求。项目利用了Spring的配置管理和依赖注入功能，以及Java的枚举和工具类来组织代码。通过Flux和SseEmitter实现了响应式的流式消息处理。
+本项目基于 Spring Boot 和 Spring WebFlux 技术栈，结合以下关键组件：
+- **OpenAI API 集成**：通过 `OpenAiApi` 和 `ChatModel` 实现。
+- **流式响应支持**：使用 Spring WebFlux 的 `Flux` 和 Spring MVC 的 `SseEmitter`。
+- **模块化设计**：通过 `ChatServiceFactory` 动态选择不同的聊天服务实现。
+- **MCP 工具集成**：支持工具扩展 AI 的能力，如天气查询。
 
 ## 项目结构
-QyAI项目由多个模块组成，包括配置、控制器、模型、服务及其具体实现。使用工厂模式来管理不同的聊天服务实现，使得代码结构清晰，易于维护和扩展。
+```
+com/qy/
+├── config/                   # 配置类，包括模型参数、跨域设置、SSE 配置等
+├── controller/               # 提供 REST API 接口，包含流式和 SSE 对话接口
+├── enums/                    # 枚举类，如 ChatModeType
+├── factory/                  # 工厂类，用于动态获取聊天服务
+├── model/                    # 数据模型，包含请求、响应和 DTO 类
+├── service/                  # 服务接口及其实现，包括 IChatService、ISseService 等
+├── util/                     # 工具类，如 SSEUtil
+└── QyAiApplication.java      # 主启动类
+```
 
 ## 配置说明
-项目使用application.yml作为主要配置文件，包含以下配置项：
-- API密钥
-- API基础URL
-- AI模型名称
-- 温度参数（temperature）
-- 最大token数（max-tokens）
+- **application.yml**：主要配置文件，包含 AI 服务的 API Key、模型参数、温度值、最大 token 数等。
+- **application-dev.yml**：开发环境配置。
+- **application-prod.yml**：生产环境配置。
+- **logback.xml**：日志配置文件。
 
 ## 使用方式
 
 ### 启动项目
-确保已安装Java和Maven，然后运行以下命令：
-```bash
-mvnw spring-boot:run
-```
+1. 确保已安装 Java 17+ 和 Maven。
+2. 执行命令：
+   ```bash
+   mvn spring-boot:run
+   ```
+3. 项目默认启动端口为 `8080`。
 
-### 发送流式请求
-使用GET请求发送流式消息，请求示例：
-```
-GET /chat/stream/msg/{sessionId}?content=你好&role=user
-```
+### 流式请求接口
+以下为部分支持的接口示例：
 
-### 服务实现
-目前支持两种AI模型服务：
-- DeepSeek AI
-- QianWen AI
+- **流式获取消息回复**：
+  - GET `/chat/stream/msg/{sessionId}` 
+  - 参数：`content`, `role`, `maxTokens`, `temperature`
+  - 响应类型：`Flux<ChatResponse>`，适用于 Spring WebFlux。
 
-每个服务都实现了流式消息处理和SSE消息处理功能。
+- **SSE 获取消息回复**：
+  - GET `/chat/sse/msg/{sessionId}`
+  - 参数：`content`, `role`, `model`
+  - 响应类型：`SseEmitter`，适用于 Server-Sent Events。
+
+- **MCP 流式获取消息回复**：
+  - GET `/chat/mcp/msg/{sessionId}`
+  - 参数：`content`, `role`, `model`
+  - 响应类型：`Flux<ServerSentEvent<String>>`。
+
+## 服务实现
+- **DeepSeekChatImpl**：DeepSeek AI 模型的具体实现，处理流式对话、SSE 和 MCP 接口。
+- **QianWenAiChatServiceImpl**：阿里云 Qianwen 模型的实现，支持 DashScope API。
+- **McpToolServiceImpl**：实现 MCP 工具，例如 `getCityWeather`，供 AI 调用。
 
 ## 贡献指南
-我们欢迎社区的贡献！请确保遵循以下指导：
-1. Fork项目并创建新分支
-2. 提交Pull Request并确保代码质量
-3. 遵循项目代码风格和规范
+欢迎提交 Issue 和 Pull Request。贡献者应遵循项目的代码风格，并确保代码测试覆盖率。
 
 ## 协议
-本项目采用MIT协议。
+该项目遵循 MIT 协议，请参阅 `LICENSE` 文件获取详细信息。
 
 ## 联系方式
-如需联系，请参考项目的英文文档(README.en.md)。
+如有问题或建议，请提交 Issue 到 [Gitee 项目页面](https://gitee.com/auraor/qy-ai)。
