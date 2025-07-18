@@ -11,13 +11,17 @@ QyAI 是一个基于 Spring Boot 的 AI 聊天服务项目，支持多种 AI 模
 - 提供全局异常处理和统一的响应格式。
 
 ## 技术架构
-- **后端框架**：Spring Boot 2.x
+- **后端框架**：Spring Boot 3.x
 - **AI 模型集成**：Spring AI
 - **认证机制**：JWT
 - **缓存**：Redis
 - **日志**：Logback
 - **异常处理**：全局异常处理器
 - **跨域支持**：CorsFilter
+- **OpenAI API 集成**：通过 `OpenAiApi` 和 `ChatModel` 实现。
+- **流式响应支持**：使用 Spring WebFlux 的 `Flux` 和 Spring MVC 的 `SseEmitter`。
+- **模块化设计**：通过 `ChatServiceFactory` 动态选择不同的聊天服务实现。
+- **MCP 工具集成**：支持工具扩展 AI 的能力，如天气查询。
 
 ## 项目结构
 ```
@@ -58,12 +62,12 @@ src/
 ## 使用方式
 
 ### 启动项目
-1. 确保已安装 JDK 1.8 或更高版本。
-2. 确保已安装 Maven。
-3. 执行以下命令启动项目：
+1. 确保已安装 Java 17+ 和 Maven。
+2. 执行命令：
    ```bash
    mvn spring-boot:run
    ```
+3. 项目默认启动端口为 `8080`。
 
 ### 流式请求接口
 #### DeepSeek 模型
