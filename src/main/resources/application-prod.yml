@@ -21,3 +21,12 @@ spring:
       database: 0
       port: 6379
       timeout: 5000ms
+
+
+jwt:
+  accessToken:
+    expireIn: 86400  #一天
+    secret: MIIBIjANBgkq
+  refreshToken:
+    expireIn: 604800 #7天
+    secret: IKDiqVmn0VFU

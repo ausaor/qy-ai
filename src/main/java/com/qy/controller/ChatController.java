@@ -41,6 +41,7 @@ public class ChatController {
             @PathVariable Long sessionId,
             @RequestParam String content,
             @RequestParam(defaultValue = "user") String role,
+            @RequestParam String model,
             @RequestParam(required = false) Integer maxTokens,
             @RequestParam(required = false) Float temperature) {
 
@@ -51,6 +52,7 @@ public class ChatController {
         request.setRole(role);
         request.setMaxTokens(maxTokens);
         request.setTemperature(temperature);
+        request.setModel(model);
 
         return sseService.streamMessage(sessionId, request);
     }
