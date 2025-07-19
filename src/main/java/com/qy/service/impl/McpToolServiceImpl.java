@@ -8,6 +8,7 @@ import com.qy.service.IMcpToolService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -16,6 +17,8 @@ import java.util.Map;
 @Slf4j
 @Service
 public class McpToolServiceImpl implements IMcpToolService {
+    @Value("${tian-api.key}")
+    private String tianApiKey;
 
     @Override
     @Tool(name = "getCityWeather", description = "获取城市天气")
@@ -28,7 +31,7 @@ public class McpToolServiceImpl implements IMcpToolService {
         Map<String, Object> result = new HashMap<>();
 
         Map<String, Object> params = new HashMap<>();
-        params.put("key", "xxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        params.put("key", tianApiKey);
         params.put("city", cityName);
         params.put("type", 1);
 
