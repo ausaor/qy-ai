@@ -141,7 +141,8 @@ public class DeepSeekChatImpl implements IChatService {
                 .modelName(chatOptions.getModel())
                 .logRequests(true)
                 .logResponses(true)
-                .temperature(0.8)
+                .temperature(0.7)
+                .maxTokens(chatOptions.getMaxTokens())
                 .build();
         StringBuilder builder = new StringBuilder();
 
@@ -197,7 +198,8 @@ public class DeepSeekChatImpl implements IChatService {
                 .modelName(chatOptions.getModel())
                 .logRequests(true)
                 .logResponses(true)
-                .temperature(0.8)
+                .temperature(0.7)
+                .maxTokens(chatOptions.getMaxTokens())
                 .build();
 
         StringBuilder builder = new StringBuilder();
