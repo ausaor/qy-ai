@@ -1,6 +1,9 @@
 package com.qy.config;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,7 +15,7 @@ public class ChatClientConfig {
      * 配置ChatClient，注册系统指令和工具函数
      */
     @Bean
-    public ChatClient chatClient(ChatClient.Builder builder, ToolCallbackProvider metricsAnalysisToolCallbackProvider) {
+    public ChatClient chatClient(ChatClient.Builder builder, ToolCallbackProvider metricsAnalysisToolCallbackProvider, ChatMemory chatMemory) {
         return builder
                 .defaultSystem("你是一个智能助手，能够像真实对话一样理解用户的需求。" +
                         "在对话中，你会：\n" +
@@ -25,6 +28,8 @@ public class ChatClientConfig {
                         "    - 当用户查询xx城市xx日期的天气情况时（例如'查询深圳市2025年7月6号天气情况'），必须调用getCityWeather工具\n")
                 // 注册工具方法
                 .defaultTools(metricsAnalysisToolCallbackProvider)
+                .defaultAdvisors(new SimpleLoggerAdvisor(), // 日志增强器
+                        MessageChatMemoryAdvisor.builder(chatMemory).build()) // 对话记忆增强器
                 .build();
     }
 } 

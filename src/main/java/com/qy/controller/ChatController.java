@@ -53,8 +53,9 @@ public class ChatController {
         request.setMaxTokens(maxTokens);
         request.setTemperature(temperature);
         request.setModel(model);
+        request.setSessionId(sessionId);
 
-        return sseService.streamMessage(sessionId, request);
+        return sseService.streamMessage(request);
     }
 
     /**
@@ -80,8 +81,9 @@ public class ChatController {
         request.setContent(content);
         request.setModel(model);
         request.setRole(role);
+        request.setSessionId(sessionId);
 
-        return sseService.streamChat(sessionId, request);
+        return sseService.streamChat(request);
     }
 
     @GetMapping(value = "/sse/msg/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -95,6 +97,7 @@ public class ChatController {
         log.info("SSE发送消息到会话: sessionId = {}, content = {}", sessionId, content);
 
         ChatRequest request = new ChatRequest();
+        request.setSessionId(sessionId);
         request.setContent(content);
         request.setModel(model);
         request.setRole(role);
@@ -115,7 +118,8 @@ public class ChatController {
         request.setModel(model);
         request.setContent(content);
         request.setRole(role);
+        request.setSessionId(sessionId);
 
-        return sseService.mcpChat(sessionId, request);
+        return sseService.mcpChat(request);
     }
 }

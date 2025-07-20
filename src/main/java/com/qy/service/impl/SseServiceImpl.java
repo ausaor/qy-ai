@@ -1,8 +1,11 @@
 package com.qy.service.impl;
 
+import cn.hutool.core.util.ObjectUtil;
+import com.qy.entity.AiChatMessage;
 import com.qy.factory.ChatServiceFactory;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
+import com.qy.service.IAiChatMessageService;
 import com.qy.service.IChatService;
 import com.qy.service.ISseService;
 import com.qy.util.SSEUtil;
@@ -27,6 +30,8 @@ public class SseServiceImpl implements ISseService {
 
     private final ChatServiceFactory chatServiceFactory;
 
+    private final IAiChatMessageService aiChatMessageService;
+
     @Override
     public SseEmitter sseChat(ChatRequest chatRequest) {
         SseEmitter sseEmitter = new SseEmitter(0L);
@@ -37,6 +42,14 @@ public class SseServiceImpl implements ISseService {
             chatRequest.setRole("user");
 
             IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
+
+            AiChatMessage aiChatMessage = new AiChatMessage();
+            aiChatMessage.setSessionId(chatRequest.getSessionId());
+            aiChatMessage.setRole("user");
+            aiChatMessage.setContent(chatRequest.getContent());
+            aiChatMessage.setModel(chatRequest.getModel());
+
+            aiChatMessageService.saveMessage(aiChatMessage);
             chatService.chat(chatRequest, sseEmitter);
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -46,23 +59,46 @@ public class SseServiceImpl implements ISseService {
     }
 
     @Override
-    public Flux<String> streamChat(Long sessionId, ChatRequest chatRequest) {
+    public Flux<String> streamChat(ChatRequest chatRequest) {
         // 构建消息列表
         buildChatMessageList(chatRequest);
         IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
-        return chatService.streamChat(sessionId, chatRequest);
+
+        AiChatMessage aiChatMessage = new AiChatMessage();
+        aiChatMessage.setSessionId(chatRequest.getSessionId());
+        aiChatMessage.setRole("user");
+        aiChatMessage.setContent(chatRequest.getContent());
+        aiChatMessage.setModel(chatRequest.getModel());
+
+        aiChatMessageService.saveMessage(aiChatMessage);
+        return chatService.streamChat(chatRequest);
     }
 
     @Override
-    public Flux<ChatResponse> streamMessage(Long sessionId, ChatMessageRequest request) {
+    public Flux<ChatResponse> streamMessage(ChatMessageRequest request) {
         IChatService chatService = chatServiceFactory.getChatService(request.getModel());
-        return chatService.streamMessage(sessionId, request);
+
+        AiChatMessage aiChatMessage = new AiChatMessage();
+        aiChatMessage.setSessionId(request.getSessionId());
+        aiChatMessage.setRole("user");
+        aiChatMessage.setContent(request.getContent());
+        aiChatMessage.setModel(request.getModel());
+
+        aiChatMessageService.saveMessage(aiChatMessage);
+        return chatService.streamMessage(request);
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, ChatMessageRequest request) {
+    public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
         IChatService chatService = chatServiceFactory.getChatService(request.getModel());
-        return chatService.mcpChat(sessionId, request.getContent());
+        AiChatMessage aiChatMessage = new AiChatMessage();
+        aiChatMessage.setSessionId(request.getSessionId());
+        aiChatMessage.setRole("user");
+        aiChatMessage.setContent(request.getContent());
+        aiChatMessage.setModel(request.getModel());
+
+        aiChatMessageService.saveMessage(aiChatMessage);
+        return chatService.mcpChat(request);
     }
 
     /**

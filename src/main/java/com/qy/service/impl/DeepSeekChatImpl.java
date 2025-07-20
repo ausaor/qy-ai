@@ -1,10 +1,14 @@
 package com.qy.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.qy.entity.AiChatMessage;
 import com.qy.enums.ChatModeType;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
+import com.qy.service.IAiChatMessageService;
 import com.qy.service.IChatService;
+import com.qy.session.SessionContext;
+import com.qy.session.UserSession;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
@@ -15,6 +19,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -26,6 +31,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -48,9 +54,12 @@ public class DeepSeekChatImpl implements IChatService {
 
     private final ObjectMapper objectMapper;
 
+    private final IAiChatMessageService aiChatMessageService;
+
     @Override
-    public Flux<ChatResponse> streamMessage(Long sessionId, ChatMessageRequest request) {
-        log.info("流式发送消息到会话: sessionId = {}, content = {}", sessionId, request.getContent());
+    public Flux<ChatResponse> streamMessage(ChatMessageRequest request) {
+        UserSession session = SessionContext.getSession();
+        log.info("流式发送消息到会话: sessionId = {}, content = {}", request.getSessionId(), request.getContent());
 
         // 创建自定义选项
         OpenAiChatOptions options = OpenAiChatOptions.builder()
@@ -65,7 +74,7 @@ public class DeepSeekChatImpl implements IChatService {
         // 添加系统消息，定义 AI 助手的角色和行为
         messages.add(new SystemMessage("你是一个乐于助人的AI助手，能够以对话的方式回应用户。请提供详细且准确的信息。"));
 
-        messages.add(new AssistantMessage(request.getContent()));
+        messages.add(new UserMessage(request.getContent()));
 
         // 创建提示并流式返回响应
         Prompt prompt = new Prompt(messages, options);
@@ -96,6 +105,17 @@ public class DeepSeekChatImpl implements IChatService {
                     // 当流完成时，保存完整的AI回复消息
                     String fullContent = contentBuilder.toString();
                     log.info("AI回复(完整): {}", fullContent);
+                    if (!fullContent.isEmpty()) {
+                        log.info("Complete Flux<String> chat result: {}", fullContent);
+                        AiChatMessage aiChatMessage = new AiChatMessage();
+                        aiChatMessage.setSessionId(request.getSessionId());
+                        aiChatMessage.setRole("assistant");
+                        aiChatMessage.setContent(fullContent);
+                        aiChatMessage.setModel(request.getModel());
+                        aiChatMessage.setUserId(session.getUserId());
+                        aiChatMessage.setCreateTime(LocalDateTime.now());
+                        aiChatMessageService.save(aiChatMessage);
+                    }
                 })
                 .onErrorResume(e -> {
                     log.error("流式消息处理出错: {}", e.getMessage());
@@ -113,7 +133,8 @@ public class DeepSeekChatImpl implements IChatService {
     }
 
     @Override
-    public Flux<String> streamChat(Long sessionId, ChatRequest request) {
+    public Flux<String> streamChat(ChatRequest chatRequest) {
+        UserSession session = SessionContext.getSession();
         StreamingChatModel model = OpenAiStreamingChatModel.builder()
                 .baseUrl(apiUrl)
                 .apiKey(apiKey)
@@ -122,21 +143,35 @@ public class DeepSeekChatImpl implements IChatService {
                 .logResponses(true)
                 .temperature(0.8)
                 .build();
+        StringBuilder builder = new StringBuilder();
 
         return Flux.create(sink -> {
             try {
-                model.chat(request.getMessages(), new StreamingChatResponseHandler() {
+                model.chat(chatRequest.getMessages(), new StreamingChatResponseHandler() {
                     @Override
                     public void onPartialResponse(String partialResponse) {
                         // 使用正确的构建方式
                         sink.next(partialResponse);
                         log.info("收到消息片段: {}", partialResponse);
+                        builder.append(partialResponse);
                     }
 
                     @Override
                     public void onCompleteResponse(dev.langchain4j.model.chat.response.ChatResponse completeResponse) {
                         log.info("消息结束，完整消息ID: {}", completeResponse.id());
                         sink.complete();
+                        String fullContent = builder.toString();
+                        if (!fullContent.isEmpty()) {
+                            log.info("Complete Flux<String> chat result: {}", fullContent);
+                            AiChatMessage aiChatMessage = new AiChatMessage();
+                            aiChatMessage.setSessionId(chatRequest.getSessionId());
+                            aiChatMessage.setRole("assistant");
+                            aiChatMessage.setContent(fullContent);
+                            aiChatMessage.setModel(chatRequest.getModel());
+                            aiChatMessage.setUserId(session.getUserId());
+                            aiChatMessage.setCreateTime(LocalDateTime.now());
+                            aiChatMessageService.save(aiChatMessage);
+                        }
                     }
 
                     @Override
@@ -154,6 +189,8 @@ public class DeepSeekChatImpl implements IChatService {
 
     @Override
     public SseEmitter chat(ChatRequest chatRequest, SseEmitter emitter) {
+        UserSession session = SessionContext.getSession();
+        
         StreamingChatModel chatModel = OpenAiStreamingChatModel.builder()
                 .baseUrl(apiUrl)
                 .apiKey(apiKey)
@@ -162,6 +199,8 @@ public class DeepSeekChatImpl implements IChatService {
                 .logResponses(true)
                 .temperature(0.8)
                 .build();
+
+        StringBuilder builder = new StringBuilder();
         // 发送流式消息
         try {
             chatModel.chat(chatRequest.getMessages(), new StreamingChatResponseHandler() {
@@ -170,7 +209,7 @@ public class DeepSeekChatImpl implements IChatService {
                 public void onPartialResponse(String partialResponse) {
                     emitter.send(partialResponse);
                     log.info("收到消息片段: {}", partialResponse);
-                    System.out.print(partialResponse);
+                    builder.append(partialResponse);
                 }
 
                 @Override
@@ -182,6 +221,18 @@ public class DeepSeekChatImpl implements IChatService {
                     }
                     emitter.complete();
                     log.info("消息结束，完整消息ID: {}", completeResponse);
+                    String fullContent = builder.toString();
+                    if (!fullContent.isEmpty()) {
+                        log.info("Complete SseEmitter chat result: {}", fullContent);
+                        AiChatMessage aiChatMessage = new AiChatMessage();
+                        aiChatMessage.setSessionId(chatRequest.getSessionId());
+                        aiChatMessage.setRole("assistant");
+                        aiChatMessage.setContent(fullContent);
+                        aiChatMessage.setModel(chatRequest.getModel());
+                        aiChatMessage.setUserId(session.getUserId());
+                        aiChatMessage.setCreateTime(LocalDateTime.now());
+                        aiChatMessageService.save(aiChatMessage);
+                    }
                 }
 
                 @Override
@@ -198,17 +249,15 @@ public class DeepSeekChatImpl implements IChatService {
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, String message) {
+    public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
+        UserSession session = SessionContext.getSession();
         StringBuilder contentBuilder = new StringBuilder();
 
-        ChatMessageRequest request = new ChatMessageRequest();
-        request.setContent(message);
-        request.setRole("user");
-
-        Prompt prompt = promptBuilder(sessionId, request);
+        Prompt prompt = promptBuilder(request);
 
         return chatClient.prompt(prompt)
-                .user(message)
+                .user(request.getContent())
+                .advisors(a -> a.param(session.getUserId() + "-" + request.getSessionId(), request.getSessionId()))
                 .stream()
                 .chatResponse()
                 .doOnNext(response -> {
@@ -228,6 +277,14 @@ public class DeepSeekChatImpl implements IChatService {
                     String fullContent = contentBuilder.toString();
                     if (!fullContent.isEmpty()) {
                         log.info("Complete mcp chat result: {}", fullContent);
+                        AiChatMessage aiChatMessage = new AiChatMessage();
+                        aiChatMessage.setSessionId(request.getSessionId());
+                        aiChatMessage.setRole("assistant");
+                        aiChatMessage.setContent(fullContent);
+                        aiChatMessage.setModel(request.getModel());
+                        aiChatMessage.setUserId(session.getUserId());
+                        aiChatMessage.setCreateTime(LocalDateTime.now());
+                        aiChatMessageService.save(aiChatMessage);
                     }
                 })
                 .onErrorResume(e -> {
@@ -243,11 +300,10 @@ public class DeepSeekChatImpl implements IChatService {
     /**
      *  构建提示词,能查询数据库关联之前的对话记录
      *
-     * @param sessionId 会话ID
      * @param request 请求
      * @return 提示词
      */
-    private Prompt promptBuilder(Long sessionId, ChatMessageRequest request) {
+    private Prompt promptBuilder(ChatMessageRequest request) {
         // 创建自定义选项
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .model(chatOptions.getModel())

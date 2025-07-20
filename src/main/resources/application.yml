@@ -50,10 +50,9 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
-      # 主键类型: AUTO=数据库自增
-      id-type: auto
+      id-type: assign_id
       # 逻辑删除字段名（如果使用）
-      # logic-delete-field: is_deleted
+      # logic-delete-field: deleted
       # 逻辑删除值（删除后的值）
       # logic-delete-value: 1
       # 逻辑未删除值

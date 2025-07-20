@@ -28,12 +28,12 @@ public class QianWenAiChatServiceImpl implements IChatService {
     private String modelName;
 
     @Override
-    public Flux<ChatResponse> streamMessage(Long sessionId, ChatMessageRequest request) {
+    public Flux<ChatResponse> streamMessage(ChatMessageRequest request) {
         return null;
     }
 
     @Override
-    public Flux<String> streamChat(Long sessionId, ChatRequest request) {
+    public Flux<String> streamChat(ChatRequest request) {
         StreamingChatModel model = QwenStreamingChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(modelName)
@@ -109,7 +109,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> mcpChat(Long sessionId, String message) {
+    public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
         return null;
     }
 

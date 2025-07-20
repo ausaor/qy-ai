@@ -22,6 +22,6 @@ public class ChatMessageRequest {
     private String role = "user"; // 消息角色，默认为"user"
     private Integer maxTokens;    // 生成回复的最大令牌数
     private Float temperature;    // 控制输出的随机性
-    private String sessionId;     // 会话ID
+    private Long sessionId;     // 会话ID
     private String model;         // 模型名称
 } 
