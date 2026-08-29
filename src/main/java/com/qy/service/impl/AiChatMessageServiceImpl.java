@@ -1,6 +1,5 @@
 package com.qy.service.impl;
 
-import cn.hutool.core.lang.Snowflake;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.qy.entity.AiChatMessage;

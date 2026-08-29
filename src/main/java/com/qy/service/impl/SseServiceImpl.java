@@ -1,6 +1,5 @@
 package com.qy.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
 import com.qy.entity.AiChatMessage;
 import com.qy.factory.ChatServiceFactory;
 import com.qy.model.ChatMessageRequest;
@@ -9,9 +8,6 @@ import com.qy.service.IAiChatMessageService;
 import com.qy.service.IChatService;
 import com.qy.service.ISseService;
 import com.qy.util.SSEUtil;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -105,11 +101,6 @@ public class SseServiceImpl implements ISseService {
      * 构建消息列表
      */
     private void buildChatMessageList(ChatRequest chatRequest) {
-        List<ChatMessage> messages = new ArrayList<>();
 
-        messages.add(new SystemMessage("你是一个乐于助人的AI助手，能够以对话的方式回应用户。请提供详细且准确的信息。"));
-
-        messages.add(new UserMessage(chatRequest.getContent()));
-        chatRequest.setMessages(messages);
     }
 }

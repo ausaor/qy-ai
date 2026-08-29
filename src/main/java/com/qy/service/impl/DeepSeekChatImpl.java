@@ -9,14 +9,10 @@ import com.qy.service.IAiChatMessageService;
 import com.qy.service.IChatService;
 import com.qy.session.SessionContext;
 import com.qy.session.UserSession;
-import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -30,7 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -134,120 +129,12 @@ public class DeepSeekChatImpl implements IChatService {
 
     @Override
     public Flux<String> streamChat(ChatRequest chatRequest) {
-        UserSession session = SessionContext.getSession();
-        StreamingChatModel model = OpenAiStreamingChatModel.builder()
-                .baseUrl(apiUrl)
-                .apiKey(apiKey)
-                .modelName(chatOptions.getModel())
-                .logRequests(true)
-                .logResponses(true)
-                .temperature(0.7)
-                .maxTokens(chatOptions.getMaxTokens())
-                .build();
-        StringBuilder builder = new StringBuilder();
-
-        return Flux.create(sink -> {
-            try {
-                model.chat(chatRequest.getMessages(), new StreamingChatResponseHandler() {
-                    @Override
-                    public void onPartialResponse(String partialResponse) {
-                        // 使用正确的构建方式
-                        sink.next(partialResponse);
-                        log.info("收到消息片段: {}", partialResponse);
-                        builder.append(partialResponse);
-                    }
-
-                    @Override
-                    public void onCompleteResponse(dev.langchain4j.model.chat.response.ChatResponse completeResponse) {
-                        log.info("消息结束，完整消息ID: {}", completeResponse.id());
-                        sink.complete();
-                        String fullContent = builder.toString();
-                        if (!fullContent.isEmpty()) {
-                            log.info("Complete Flux<String> chat result: {}", fullContent);
-                            AiChatMessage aiChatMessage = new AiChatMessage();
-                            aiChatMessage.setSessionId(chatRequest.getSessionId());
-                            aiChatMessage.setRole("assistant");
-                            aiChatMessage.setContent(fullContent);
-                            aiChatMessage.setModel(chatRequest.getModel());
-                            aiChatMessage.setUserId(session.getUserId());
-                            aiChatMessage.setCreateTime(LocalDateTime.now());
-                            aiChatMessageService.save(aiChatMessage);
-                        }
-                    }
-
-                    @Override
-                    public void onError(Throwable error) {
-                        log.error("流式请求失败:", error);
-                        sink.error(error);
-                    }
-                });
-            } catch (Exception e) {
-                log.error("千问请求失败：{}", e.getMessage());
-                sink.error(e);
-            }
-        });
+        return null;
     }
 
     @Override
     public SseEmitter chat(ChatRequest chatRequest, SseEmitter emitter) {
-        UserSession session = SessionContext.getSession();
-        
-        StreamingChatModel chatModel = OpenAiStreamingChatModel.builder()
-                .baseUrl(apiUrl)
-                .apiKey(apiKey)
-                .modelName(chatOptions.getModel())
-                .logRequests(true)
-                .logResponses(true)
-                .temperature(0.7)
-                .maxTokens(chatOptions.getMaxTokens())
-                .build();
-
-        StringBuilder builder = new StringBuilder();
-        // 发送流式消息
-        try {
-            chatModel.chat(chatRequest.getMessages(), new StreamingChatResponseHandler() {
-                @SneakyThrows
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    emitter.send(partialResponse);
-                    log.info("收到消息片段: {}", partialResponse);
-                    builder.append(partialResponse);
-                }
-
-                @Override
-                public void onCompleteResponse(dev.langchain4j.model.chat.response.ChatResponse completeResponse) {
-                    try {
-                        emitter.send(SseEmitter.event().name("end").data("DONE"));
-                    } catch (IOException e) {
-                        log.error("SSE发送失败: {}", e.getMessage());
-                    }
-                    emitter.complete();
-                    log.info("消息结束，完整消息ID: {}", completeResponse);
-                    String fullContent = builder.toString();
-                    if (!fullContent.isEmpty()) {
-                        log.info("Complete SseEmitter chat result: {}", fullContent);
-                        AiChatMessage aiChatMessage = new AiChatMessage();
-                        aiChatMessage.setSessionId(chatRequest.getSessionId());
-                        aiChatMessage.setRole("assistant");
-                        aiChatMessage.setContent(fullContent);
-                        aiChatMessage.setModel(chatRequest.getModel());
-                        aiChatMessage.setUserId(session.getUserId());
-                        aiChatMessage.setCreateTime(LocalDateTime.now());
-                        aiChatMessageService.save(aiChatMessage);
-                    }
-                }
-
-                @Override
-                public void onError(Throwable error) {
-                    System.err.println("错误: " + error.getMessage());
-                }
-            });
-
-        } catch (Exception e) {
-            log.error("deepseek请求失败：{}", e.getMessage());
-        }
-
-        return emitter;
+        return null;
     }
 
     @Override

@@ -1,6 +1,5 @@
 package com.qy.model;
 
-import dev.langchain4j.data.message.ChatMessage;
 import lombok.Data;
 
 import java.util.List;
@@ -62,6 +61,4 @@ public class ChatRequest {
      * 对话角色
      */
     private String role;
-
-    private List<ChatMessage> messages;
 }
