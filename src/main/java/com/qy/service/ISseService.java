@@ -14,7 +14,7 @@ public interface ISseService {
      */
     SseEmitter sseChat(ChatRequest chatRequest);
 
-    Flux<String> streamChat(ChatRequest chatRequest);
+    Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest);
 
     Flux<ChatResponse> streamMessage(ChatMessageRequest request);
 

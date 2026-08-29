@@ -69,7 +69,7 @@ public class ChatController {
      */
     @GetMapping(value = "/flux/msg/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "流式获取消息回复", description = "发送消息并流式返回回复")
-    public Flux<String> streamChat(
+    public Flux<ServerSentEvent<String>> streamChat(
             @PathVariable Long sessionId,
             @RequestParam String content,
             @RequestParam(defaultValue = "user") String role,

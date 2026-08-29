@@ -76,11 +76,10 @@ public class QianWenAiChatServiceImpl implements IChatService {
     /**
      * 保存 AI 回复消息
      */
-    private void saveAssistantMessage(ChatMessageRequest request, String content) {
+    private void saveAssistantMessage(ChatMessageRequest request, String content, UserSession session) {
         if (content == null || content.isEmpty()) {
             return;
         }
-        UserSession session = SessionContext.getSession();
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(request.getSessionId());
         aiChatMessage.setRole("assistant");
@@ -96,6 +95,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
         log.info("千问流式发送消息到会话: sessionId = {}, content = {}", request.getSessionId(), request.getContent());
 
         UserSession session = SessionContext.getSession();
+        String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + request.getSessionId();
 
         // 累积完整回复内容
         StringBuilder contentBuilder = new StringBuilder();
@@ -103,7 +103,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(request.getContent())
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, session.getUserId() + "-" + request.getSessionId()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .options(buildOptions(request))
                 .stream()
                 .chatResponse()
@@ -122,7 +122,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
                 .doOnComplete(() -> {
                     String fullContent = contentBuilder.toString();
                     log.info("AI回复(完整): {}", fullContent);
-                    saveAssistantMessage(request, fullContent);
+                    saveAssistantMessage(request, fullContent, session);
                 })
                 .onErrorResume(e -> {
                     log.error("流式消息处理出错: {}", e.getMessage());
@@ -131,10 +131,11 @@ public class QianWenAiChatServiceImpl implements IChatService {
     }
 
     @Override
-    public Flux<String> streamChat(ChatRequest chatRequest) {
+    public Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest) {
         log.info("千问流式发送消息到会话: sessionId = {}, content = {}", chatRequest.getSessionId(), chatRequest.getContent());
 
         UserSession session = SessionContext.getSession();
+        String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + chatRequest.getSessionId();
 
         // 累积完整回复内容
         StringBuilder contentBuilder = new StringBuilder();
@@ -142,7 +143,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(chatRequest.getContent())
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, session.getUserId() + "-" + chatRequest.getSessionId()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content()
                 .doOnNext(contentBuilder::append)
@@ -152,12 +153,15 @@ public class QianWenAiChatServiceImpl implements IChatService {
                     ChatMessageRequest request = new ChatMessageRequest();
                     request.setSessionId(chatRequest.getSessionId());
                     request.setModel(chatRequest.getModel());
-                    saveAssistantMessage(request, fullContent);
+                    saveAssistantMessage(request, fullContent, session);
                 })
                 .onErrorResume(e -> {
                     log.error("流式消息处理出错: {}", e.getMessage());
-                    return Flux.empty();
-                });
+                    return Flux.just("抱歉，AI服务暂时不可用，请稍后重试。");
+                })
+                .map(content -> ServerSentEvent.<String>builder()
+                        .data(content)
+                        .build());
     }
 
     @Override
@@ -165,13 +169,14 @@ public class QianWenAiChatServiceImpl implements IChatService {
         log.info("千问SSE发送消息到会话: sessionId = {}, content = {}", chatRequest.getSessionId(), chatRequest.getContent());
 
         UserSession session = SessionContext.getSession();
+        String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + chatRequest.getSessionId();
 
         StringBuilder contentBuilder = new StringBuilder();
 
         chatClient.prompt()
                 .system(systemPrompt)
                 .user(chatRequest.getContent())
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, session.getUserId() + "-" + chatRequest.getSessionId()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content()
                 .doOnNext(content -> {
@@ -187,7 +192,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
                         ChatMessageRequest request = new ChatMessageRequest();
                         request.setSessionId(chatRequest.getSessionId());
                         request.setModel(chatRequest.getModel());
-                        saveAssistantMessage(request, contentBuilder.toString());
+                        saveAssistantMessage(request, contentBuilder.toString(), session);
                         emitter.complete();
                     } catch (Exception e) {
                         log.error("SSE完成事件处理出错: {}", e.getMessage());
@@ -206,12 +211,13 @@ public class QianWenAiChatServiceImpl implements IChatService {
     @Override
     public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
         UserSession session = SessionContext.getSession();
+        String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + request.getSessionId();
         StringBuilder contentBuilder = new StringBuilder();
 
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(request.getContent())
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, session.getUserId() + "-" + request.getSessionId()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .options(buildOptions(request))
                 .stream()
                 .chatResponse()
@@ -231,7 +237,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
                     String fullContent = contentBuilder.toString();
                     if (!fullContent.isEmpty()) {
                         log.info("Complete mcp chat result: {}", fullContent);
-                        saveAssistantMessage(request, fullContent);
+                        saveAssistantMessage(request, fullContent, session);
                     }
                 })
                 .onErrorResume(e -> {

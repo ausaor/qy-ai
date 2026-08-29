@@ -50,7 +50,7 @@ public class SseServiceImpl implements ISseService {
     }
 
     @Override
-    public Flux<String> streamChat(ChatRequest chatRequest) {
+    public Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest) {
         IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
 
         AiChatMessage aiChatMessage = new AiChatMessage();
