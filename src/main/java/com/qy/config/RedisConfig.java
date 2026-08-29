@@ -1,13 +1,6 @@
 package com.qy.config;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.annotation.Resource;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurerSupport;
@@ -19,9 +12,11 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 
 import java.time.Duration;
 
@@ -37,9 +32,9 @@ public class RedisConfig extends CachingConfigurerSupport {
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
-        // 设置值（value）的序列化采用jackson2JsonRedisSerializer
-        redisTemplate.setValueSerializer(jackson2JsonRedisSerializer());
-        redisTemplate.setHashValueSerializer(jackson2JsonRedisSerializer());
+        // 设置值（value）的序列化采用 jacksonJsonRedisSerializer
+        redisTemplate.setValueSerializer(genericJacksonJsonRedisSerializer());
+        redisTemplate.setHashValueSerializer(genericJacksonJsonRedisSerializer());
         // 设置键（key）的序列化采用StringRedisSerializer。
         redisTemplate.setKeySerializer(new StringRedisSerializer());
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());
@@ -53,22 +48,28 @@ public class RedisConfig extends CachingConfigurerSupport {
     public CacheManager cacheManager() {
         // 设置redis缓存管理器
         RedisCacheConfiguration cacheConfiguration = RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofSeconds(600))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jackson2JsonRedisSerializer()));
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(genericJacksonJsonRedisSerializer()));
         return RedisCacheManager.builder(factory).cacheDefaults(cacheConfiguration).build();
     }
 
 
+    /**
+     * Jackson 3 的通用 JSON 序列化器（Spring Boot 4 默认 Jackson 3）
+     * - 开启默认类型信息，反序列化时可以还原对象类型
+     * - Jackson 3 内置 JSR-310 日期时间支持，无需再注册 JavaTimeModule
+     */
     @Bean
-    public Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer() {
-        ObjectMapper om = new ObjectMapper();
-        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // 解决jackson2无法反序列化LocalDateTime的问题
-        om.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        om.registerModule(new JavaTimeModule());
-        om.setSerializationInclusion(JsonInclude.Include.NON_NULL); // 忽略空值
-        om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
-        //忽略无效字段
-        om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return new Jackson2JsonRedisSerializer<>(om, Object.class);
+    public GenericJacksonJsonRedisSerializer genericJacksonJsonRedisSerializer() {
+        return GenericJacksonJsonRedisSerializer.builder()
+                // 类型信息写入，允许还原 Object 及其子类
+                .enableDefaultTyping(BasicPolymorphicTypeValidator.builder()
+                        .allowIfBaseType(Object.class)
+                        .build())
+                .customize(builder -> builder
+                        // 忽略无效字段
+                        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                        // 忽略空值
+                        .changeDefaultPropertyInclusion(v -> v.withValueInclusion(JsonInclude.Include.NON_NULL)))
+                .build();
     }
 }

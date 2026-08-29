@@ -16,9 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,8 +29,6 @@ public class SseServiceImpl implements ISseService {
     public SseEmitter sseChat(ChatRequest chatRequest) {
         SseEmitter sseEmitter = new SseEmitter(0L);
         try {
-            // 构建消息列表
-            buildChatMessageList(chatRequest);
             // 设置对话角色
             chatRequest.setRole("user");
 
@@ -56,8 +51,6 @@ public class SseServiceImpl implements ISseService {
 
     @Override
     public Flux<String> streamChat(ChatRequest chatRequest) {
-        // 构建消息列表
-        buildChatMessageList(chatRequest);
         IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
 
         AiChatMessage aiChatMessage = new AiChatMessage();
@@ -95,12 +88,5 @@ public class SseServiceImpl implements ISseService {
 
         aiChatMessageService.saveMessage(aiChatMessage);
         return chatService.mcpChat(request);
-    }
-
-    /**
-     * 构建消息列表
-     */
-    private void buildChatMessageList(ChatRequest chatRequest) {
-
     }
 }

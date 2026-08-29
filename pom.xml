@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.0</version>
+        <version>4.0.8</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.qy</groupId>
@@ -27,12 +27,12 @@
         <url/>
     </scm>
     <properties>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-ai.version>1.0.0-M6</spring-ai.version>
-        <dashscope.version>2.4.0</dashscope.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
+        <openai-java.version>4.39.1</openai-java.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -46,50 +46,44 @@
         </dependencies>
     </dependencyManagement>
     <dependencies>
+        <!-- Spring AI 2.0：OpenAI 客户端（用于 DeepSeek 与通义千问的 OpenAI 兼容接口） -->
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-core</artifactId>
-            <version>${spring-ai.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-spring-boot-autoconfigure</artifactId>
-            <version>${spring-ai.version}</version>
-        </dependency>
-
-        <!-- Spring AI MCP Server -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-mcp-server-webmvc-spring-boot-starter</artifactId>
-            <version>${spring-ai.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai</artifactId>
-            <version>${spring-ai.version}</version>
-        </dependency>
-
-        <!--<dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
-            <version>1.0.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.ai</groupId>
-                    <artifactId>spring-ai-autoconfigure-model-chat-client</artifactId> &lt;!&ndash; 可能包含旧包路径 &ndash;&gt;
-                </exclusion>
-                <exclusion>
-                    <groupId>org.springframework.ai</groupId>
-                    <artifactId>spring-ai-autoconfigure-model-openai</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>-->
+        </dependency>
+
+        <!-- openai-java SDK 的 OkHttp 客户端实现，Spring AI 2.0 底层基于 vendor SDK 通信 -->
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java-client-okhttp</artifactId>
+            <version>${openai-java.version}</version>
+        </dependency>
+
+        <!-- Spring AI 2.0 工具 JSON Schema 生成所需（MethodToolCallbackProvider 依赖，不会自动传递） -->
+        <dependency>
+            <groupId>com.github.victools</groupId>
+            <artifactId>jsonschema-generator</artifactId>
+            <version>5.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.victools</groupId>
+            <artifactId>jsonschema-module-jackson</artifactId>
+            <version>5.0.0</version>
+        </dependency>
+
+        <!-- Spring AI MCP Server (WebMVC, Streamable-HTTP 协议) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -106,22 +100,11 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- spring boot 4.x 专用 MyBatis-Plus starter -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId>
-            <version>3.5.5</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.mybatis</groupId>
-                    <artifactId>mybatis-spring</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <!-- spring boot 3.x 对应 mybatis-spring 3.x -->
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis-spring</artifactId>
-            <version>3.0.3</version>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+            <version>3.5.17</version>
         </dependency>
 
         <!-- 引入操作JWT的相关依赖 -->
@@ -147,7 +130,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.28</version>
+            <version>1.18.42</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -168,33 +151,6 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <name>Central Portal Snapshots</name>
-            <id>central-portal-snapshots</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>spring-milestones</id>
-            <name>Spring Milestones</name>
-            <url>https://repo.spring.io/milestone</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>spring-snapshots</id>
-            <name>Spring Snapshots</name>
-            <url>https://repo.spring.io/snapshot</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </repository>
     </repositories>
 
     <build>
@@ -204,13 +160,15 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <source>21</source>
+                    <target>21</target>
+                    <!-- 保留构造器/方法参数名，供 Spring 按参数名进行依赖注入解析 -->
+                    <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.28</version>
+                            <version>1.18.42</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

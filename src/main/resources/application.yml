@@ -14,33 +14,49 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
-  # Jackson日期序列化配置（推荐）
+  # Jackson日期序列化配置（Jackson 3 已移除 write-dates-as-timestamps，无需配置）
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
     time-zone: GMT+8
     date-format: yyyy-MM-dd HH:mm:ss
 
-  # Spring AI配置 - 通过Spring AI的OpenAI客户端连接DeepSeek API
+  # Spring AI 2.0 配置
   ai:
+    # 全局系统提示词（DeepSeek 与通义千问共用）
+    assistant:
+      system-prompt: "你是一个乐于助人的AI助手，能够以对话的方式回应用户。请提供详细且准确的信息。"
+
+    # ChatClient 自动配置：关闭（项目中手动构建 deepseek/qianwen 两个 ChatClient）
+    chat:
+      client:
+        enabled: false
+
+    # DeepSeek：通过 OpenAI 兼容接口接入
     openai:
       api-key: sk-xxxxxxxxxxxxxxxxxxxxx
       base-url: https://api.deepseek.com
       chat:
         options:
-          model: deepseek-chat
+          model: deepseek-v4-pro
           temperature: 0.7
           max-tokens: 2000
-    dash-scope:
+
+    # 通义千问：通过 DashScope 的 OpenAI 兼容接口接入（qwen-plus / qwen-turbo / deepseek-v3 等）
+    qianwen:
       api-key: sk-xxxxxxxxxxxxxxxxxxxxx
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       chat:
         options:
-          #模型名称： qwen-plus  deepseek-v3  deepseek-r1
           model: qwen-plus
+          temperature: 0.7
+          max-tokens: 2000
+
+    # MCP Server 2.0：Streamable-HTTP 协议
     mcp:
       server:
         enabled: true  # 启用MCP服务器
-        path: "/chat"  # MCP服务器路径
+        protocol: STREAMABLE  # 传输协议：STREAMABLE / SSE / STATELESS
+        streamable-http:
+          mcp-endpoint: "/chat"  # MCP服务器路径
 
 mybatis-plus:
   configuration:

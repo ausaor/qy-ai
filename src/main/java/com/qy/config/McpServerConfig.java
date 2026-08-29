@@ -2,7 +2,6 @@ package com.qy.config;
 
 import com.qy.service.IMcpToolService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +23,7 @@ public class McpServerConfig {
         // 通过反射获取工具名称
         log.info("=== 已注册的工具列表 ===");
         Arrays.stream(provider.getToolCallbacks())
-                .map(ToolCallback::getName)
+                .map(callback -> callback.getToolDefinition().name())
                 .forEach(name -> log.info("注册的工具Registered Tool: {}", name));
         return provider;
     }
