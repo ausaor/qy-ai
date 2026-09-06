@@ -38,10 +38,12 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 import tools.jackson.databind.ObjectMapper;
 
+import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -216,13 +218,16 @@ public class QianWenAiChatServiceImpl implements IChatService {
         UserSession session = SessionContext.getSession();
         String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + chatRequest.getSessionId();
 
-        // 音频文件无法走 Spring AI 的 media 转换（OpenAiChatModel 只向 input_audio.data
-        // 填纯 base64，DashScope 要求 URL/data URL，会报 400），改用 SDK 直接构造请求
-        if (containsAudio(chatRequest.getFiles())) {
-            return streamAudioChat(chatRequest, session, conversationId);
+        // 音频/视频文件无法走 Spring AI 的 media 转换：
+        // - 音频：OpenAiChatModel 只向 input_audio.data 填纯 base64，DashScope 要求 URL/data URL，会报 400
+        // - 视频：Spring AI 2.0 将 video/* 降级为 ChatCompletionContentPartText（base64 data URL 文本），
+        //   模型收到的是文本 URL 而非视频内容，无法正确理解
+        // 因此二者均改用 SDK 直接构造请求
+        if (containsAudio(chatRequest.getFiles()) || containsVideo(chatRequest.getFiles())) {
+            return streamNotImgChat(chatRequest, session, conversationId);
         }
 
-        // 将 MultipartFile 转换为 Media 数组（仅图片/视频等 Spring AI 可处理的类型）
+        // 将 MultipartFile 转换为 Media 数组（仅图片等 Spring AI 可处理的类型，音频/视频已走 SDK 路径）
         Media[] mediaArray = convertFilesToMedia(chatRequest.getFiles());
 
         StringBuilder contentBuilder = new StringBuilder();
@@ -255,16 +260,17 @@ public class QianWenAiChatServiceImpl implements IChatService {
     }
 
     /**
-     * 音频多模态流式对话
+     * 音频/视频多模态流式对话
      * <p>
      * DashScope 的 qwen 多模态模型在 OpenAI 兼容模式下，input_audio.data 仅接受
      * 音频 URL 或 data URL（data:audio/xxx;base64,...），而 Spring AI 2.0 的
      * OpenAiChatModel 只会填纯 base64 字符串，导致 400 报错（URL 无效）。
-     * 因此音频场景改用 openai-java SDK 直接构造请求。
+     * 视频同理，Spring AI 2.0 将 video/* 降级为纯文本 data URL，模型无法正确理解。
+     * 因此音频/视频场景改用 openai-java SDK 直接构造请求。
      */
-    private Flux<ServerSentEvent<String>> streamAudioChat(ChatRequest chatRequest, UserSession session, String conversationId) {
+    private Flux<ServerSentEvent<String>> streamNotImgChat(ChatRequest chatRequest, UserSession session, String conversationId) {
         try {
-            ChatCompletionCreateParams params = buildAudioChatParams(chatRequest, conversationId);
+            ChatCompletionCreateParams params = buildMultiModalChatParams(chatRequest, conversationId);
             StringBuilder contentBuilder = new StringBuilder();
 
             return Flux.using(
@@ -306,7 +312,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
     /**
      * 构建音频场景的聊天请求参数：系统提示词 + 历史对话（仅文本）+ 当前用户消息（文本 + content parts）
      */
-    private ChatCompletionCreateParams buildAudioChatParams(ChatRequest chatRequest, String conversationId) throws Exception {
+    private ChatCompletionCreateParams buildMultiModalChatParams(ChatRequest chatRequest, String conversationId) throws Exception {
         ChatCompletionCreateParams.Builder paramsBuilder = ChatCompletionCreateParams.builder()
                 .model(multimodalModel)
                 .temperature(chatOptions.getTemperature())
@@ -331,8 +337,8 @@ public class QianWenAiChatServiceImpl implements IChatService {
      * 将文本与附件文件组装为 openai-java SDK 的 content parts
      * <p>
      * 音频使用 data URL（DashScope 要求 input_audio.data 为 URL 形式）；
-     * 图片使用 data URL 的 image_url；视频等其他类型降级为 data URL 文本
-     * （与 Spring AI 对 video 的降级处理一致）。
+     * 图片使用 data URL 的 image_url；视频使用 video_url（通过反射构造）；
+     * 其他类型降级为 data URL 文本。
      */
     private List<ChatCompletionContentPart> buildContentParts(ChatRequest chatRequest) throws Exception {
         List<ChatCompletionContentPart> parts = new ArrayList<>();
@@ -368,8 +374,13 @@ public class QianWenAiChatServiceImpl implements IChatService {
                                         .url(dataUrl)
                                         .build())
                                 .build()));
+            } else if (contentType != null && contentType.startsWith("video/")) {
+                // 视频：构造 video_url 类型的 content part
+                // openai-java SDK 暂无 ChatCompletionContentPartVideo 类型，
+                // 通过反射利用 _json 回退字段构造自定义 JSON
+                parts.add(createVideoContentPart(dataUrl));
             } else {
-                // 视频等类型降级为 data URL 文本
+                // 其他类型降级为 data URL 文本
                 parts.add(ChatCompletionContentPart.ofText(
                         ChatCompletionContentPartText.builder()
                                 .text(dataUrl)
@@ -383,6 +394,52 @@ public class QianWenAiChatServiceImpl implements IChatService {
     private boolean containsAudio(List<MultipartFile> files) {
         return files != null && files.stream()
                 .anyMatch(file -> file.getContentType() != null && file.getContentType().startsWith("audio/"));
+    }
+
+    /** 判断附件中是否包含视频文件 */
+    private boolean containsVideo(List<MultipartFile> files) {
+        return files != null && files.stream()
+                .anyMatch(file -> file.getContentType() != null && file.getContentType().startsWith("video/"));
+    }
+
+    /**
+     * 构造 video_url 类型的 ChatCompletionContentPart
+     * <p>
+     * openai-java SDK 暂未提供 ChatCompletionContentPartVideo 类型，
+     * 通过反射调用 ChatCompletionContentPart 的合成构造函数，
+     * 利用 _json 回退字段发送自定义 JSON：
+     * {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,..."}}
+     * <p>
+     * ChatCompletionContentPart 的序列化器会按 text → imageUrl → inputAudio → file → _json
+     * 的顺序检查，当前四项均为 null 时回退到 _json，从而正确输出自定义 JSON。
+     */
+    private ChatCompletionContentPart createVideoContentPart(String dataUrl) {
+        try {
+            Map<String, Object> videoUrlObj = Map.of("url", dataUrl);
+            Map<String, Object> jsonMap = Map.of(
+                    "type", "video_url",
+                    "video_url", videoUrlObj);
+            com.openai.core.JsonValue jsonValue = com.openai.core.JsonValue.from(jsonMap);
+
+            // 调用合成构造函数：(text, imageUrl, inputAudio, file, _json, bitmask, marker)
+            // bitmask: 1=text null, 2=imageUrl null, 4=inputAudio null, 8=file null => 15 = 全部为 null
+            Constructor<ChatCompletionContentPart> constructor = ChatCompletionContentPart.class
+                    .getDeclaredConstructor(
+                            ChatCompletionContentPartText.class,
+                            ChatCompletionContentPartImage.class,
+                            ChatCompletionContentPartInputAudio.class,
+                            ChatCompletionContentPart.File.class,
+                            com.openai.core.JsonValue.class,
+                            int.class,
+                            kotlin.jvm.internal.DefaultConstructorMarker.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(null, null, null, null, jsonValue, 15, null);
+        } catch (Exception e) {
+            log.error("构造 video_url content part 失败: {}", e.getMessage(), e);
+            // 降级：使用 text 类型发送 data URL
+            return ChatCompletionContentPart.ofText(
+                    ChatCompletionContentPartText.builder().text(dataUrl).build());
+        }
     }
 
     /** 根据音频 MIME 类型解析 SDK 支持的音频格式（仅支持 MP3/WAV） */
