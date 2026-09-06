@@ -1,5 +1,8 @@
 package com.qy.controller;
 
+import cn.hutool.core.util.StrUtil;
+import com.qy.enums.ChatType;
+import com.qy.exception.GlobalException;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
 import com.qy.service.ISseService;
@@ -84,10 +87,14 @@ public class ChatController {
             @RequestParam String content,
             @RequestParam(defaultValue = "user") String role,
             @RequestParam String model,
+            @RequestParam String chatType,
             @RequestPart(required = false) List<MultipartFile> files) {
 
         log.info("流式发送消息到会话: sessionId = {}, content = {}, files = {}",
                 sessionId, content, files != null ? files.size() : 0);
+        if (!StrUtil.equalsAny(chatType, ChatType.CHAT.getCode(), ChatType.AGENT.getCode())) {
+            throw new GlobalException("Invalid chat type: " + chatType);
+        }
 
         ChatRequest request = new ChatRequest();
         request.setContent(content);
@@ -95,6 +102,7 @@ public class ChatController {
         request.setRole(role);
         request.setSessionId(sessionId);
         request.setFiles(files);
+        request.setChatType(chatType);
 
         return sseService.streamChat(request);
     }

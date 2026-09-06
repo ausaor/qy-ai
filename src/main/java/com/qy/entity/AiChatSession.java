@@ -15,6 +15,8 @@ public class AiChatSession {
 
     private String title;
 
+    private String type;
+
     @TableLogic
     private Boolean deleted;
 

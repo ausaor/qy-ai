@@ -64,6 +64,11 @@ public class ChatRequest {
     private String role;
 
     /**
+     * 对话类型 chat-智能问答，agent-智能体
+     */
+    private String chatType;
+
+    /**
      * 附件
      */
     private List<MultipartFile> files;

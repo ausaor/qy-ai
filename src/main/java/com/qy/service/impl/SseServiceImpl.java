@@ -6,6 +6,7 @@ import com.qy.factory.ChatServiceFactory;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
 import com.qy.service.IAiChatMessageService;
+import com.qy.service.IAiChatSessionService;
 import com.qy.service.IChatService;
 import com.qy.service.ISseService;
 import com.qy.util.SSEUtil;
@@ -25,6 +26,8 @@ public class SseServiceImpl implements ISseService {
     private final ChatServiceFactory chatServiceFactory;
 
     private final IAiChatMessageService aiChatMessageService;
+
+    private final IAiChatSessionService aiChatSessionService;
 
     @Override
     public SseEmitter sseChat(ChatRequest chatRequest) {
@@ -53,6 +56,8 @@ public class SseServiceImpl implements ISseService {
     @Override
     public Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest) {
         IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
+
+        aiChatSessionService.saveAiChatSession(chatRequest);
 
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(chatRequest.getSessionId());
