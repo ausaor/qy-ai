@@ -26,7 +26,7 @@ public class ChatClientConfig {
         return ChatClient.builder(deepseekChatModel)
                 .defaultSystem(systemPrompt)
                 // 注册工具方法
-                .defaultToolCallbacks(metricsAnalysisToolCallbackProvider)
+                .defaultTools(metricsAnalysisToolCallbackProvider)
                 .defaultAdvisors(new SimpleLoggerAdvisor(), // 日志增强器
                         MessageChatMemoryAdvisor.builder(chatMemory).build()) // 对话记忆增强器
                 .build();
@@ -44,7 +44,7 @@ public class ChatClientConfig {
         return ChatClient.builder(qianwenChatModel)
                 .defaultSystem(systemPrompt)
                 // 注册工具方法
-                .defaultToolCallbacks(metricsAnalysisToolCallbackProvider)
+                .defaultTools(metricsAnalysisToolCallbackProvider)
                 .defaultAdvisors(new SimpleLoggerAdvisor(), // 日志增强器
                         MessageChatMemoryAdvisor.builder(chatMemory).build()) // 对话记忆增强器
                 .build();

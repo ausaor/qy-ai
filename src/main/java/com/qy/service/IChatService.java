@@ -25,6 +25,15 @@ public interface IChatService {
      */
     Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest);
 
+
+    /**
+     * 流式发送消息到会话并获取AI回复(多模态)
+     *
+     * @param chatRequest 消息请求
+     * @return 流式聊天响应（SSE格式）
+     */
+    Flux<ServerSentEvent<String>> streamMultiModalChat(ChatRequest chatRequest);
+
     /**
      * 客户端发送消息到服务端
      * @param chatRequest 请求对象

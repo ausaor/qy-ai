@@ -1,5 +1,6 @@
 package com.qy.service.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.qy.entity.AiChatMessage;
 import com.qy.factory.ChatServiceFactory;
 import com.qy.model.ChatMessageRequest;
@@ -60,7 +61,11 @@ public class SseServiceImpl implements ISseService {
         aiChatMessage.setModel(chatRequest.getModel());
 
         aiChatMessageService.saveMessage(aiChatMessage);
-        return chatService.streamChat(chatRequest);
+        if (CollectionUtil.isEmpty(chatRequest.getFiles())) {
+            return chatService.streamChat(chatRequest);
+        } else {
+            return chatService.streamMultiModalChat(chatRequest);
+        }
     }
 
     @Override

@@ -165,6 +165,11 @@ public class DeepSeekChatImpl implements IChatService {
     }
 
     @Override
+    public Flux<ServerSentEvent<String>> streamMultiModalChat(ChatRequest chatRequest) {
+        return null;
+    }
+
+    @Override
     public SseEmitter chat(ChatRequest chatRequest, SseEmitter emitter) {
         log.info("DeepSeek SSE发送消息到会话: sessionId = {}, content = {}", chatRequest.getSessionId(), chatRequest.getContent());
 

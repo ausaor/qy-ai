@@ -1,6 +1,7 @@
 package com.qy.model;
 
 import lombok.Data;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -61,4 +62,9 @@ public class ChatRequest {
      * 对话角色
      */
     private String role;
+
+    /**
+     * 附件
+     */
+    private List<MultipartFile> files;
 }
