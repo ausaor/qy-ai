@@ -92,7 +92,7 @@ public class ChatController {
 
         log.info("流式发送消息到会话: sessionId = {}, content = {}, files = {}",
                 sessionId, content, files != null ? files.size() : 0);
-        if (!StrUtil.equalsAny(chatType, ChatType.CHAT.getCode(), ChatType.AGENT.getCode())) {
+        if (!StrUtil.equals(chatType, ChatType.CHAT.getCode())) {
             throw new GlobalException("Invalid chat type: " + chatType);
         }
 

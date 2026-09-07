@@ -16,6 +16,8 @@ public interface ISseService {
 
     Flux<ServerSentEvent<String>> streamChat(ChatRequest chatRequest);
 
+    Flux<ServerSentEvent<String>> streamAgentChat(ChatRequest chatRequest);
+
     Flux<ChatResponse> streamMessage(ChatMessageRequest request);
 
     Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request);
