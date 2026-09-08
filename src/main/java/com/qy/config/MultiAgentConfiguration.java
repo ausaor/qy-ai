@@ -8,7 +8,7 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,12 +25,12 @@ public class MultiAgentConfiguration {
     }
 
     /**
-     * 文档问答 Agent — 使用高级 RAG 管线
+     * 文档问答 Agent — 基于对话上下文的文档问答
+     * 注意：RAG 管线（RetrievalAugmentationAdvisor）需在配置 VectorStore 后再启用
      */
     @Bean
     public ChatClient documentQaAgent(
-            OpenAiChatModel model, ChatMemory chatMemory,
-            RetrievalAugmentationAdvisor advancedRagAdvisor,
+            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
             AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
                 .defaultSystem("""
@@ -40,7 +40,6 @@ public class MultiAgentConfiguration {
                         """)
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
-                        advancedRagAdvisor,
                         new SimpleLoggerAdvisor()
                 )
                 .build();
@@ -53,7 +52,7 @@ public class MultiAgentConfiguration {
      */
     @Bean
     public ChatClient generalAgent(
-            OpenAiChatModel model, ChatMemory chatMemory,
+            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
             AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
                 .defaultSystem("你是一个博古通今的智能助手，可以回答各种通用问题。")
@@ -71,7 +70,7 @@ public class MultiAgentConfiguration {
      */
     @Bean
     public ChatClient routerAgent(
-            OpenAiChatModel model, ChatMemory chatMemory,
+            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
             AgentRouterTool routerTool, AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
                 .defaultSystem(buildRouterSystemPrompt(registry))

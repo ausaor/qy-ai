@@ -36,7 +36,7 @@ public class AgentController {
      * 智能助手对话接口
      * Router Agent 自动识别意图并路由到对应专业 Agent
      */
-    @RequestMapping(value = "/chat",
+    @RequestMapping(value = "/chat/{sessionId}",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> agentChat(@PathVariable Long sessionId,

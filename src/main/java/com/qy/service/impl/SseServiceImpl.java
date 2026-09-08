@@ -87,6 +87,16 @@ public class SseServiceImpl implements ISseService {
 
     @Override
     public Flux<ServerSentEvent<String>> streamAgentChat(ChatRequest chatRequest) {
+        aiChatSessionService.saveAiChatSession(chatRequest);
+
+        AiChatMessage aiChatMessage = new AiChatMessage();
+        aiChatMessage.setSessionId(chatRequest.getSessionId());
+        aiChatMessage.setRole("user");
+        aiChatMessage.setContent(chatRequest.getContent());
+        aiChatMessage.setModel(chatRequest.getModel());
+
+        aiChatMessageService.saveMessage(aiChatMessage);
+
         ChatClient router = agentRegistry.getAgent(AgentType.ROUTER);
         // 将会话 ID 放入 ToolContext，供 AgentRouterTool 路由到子 Agent 时继续传递
 
