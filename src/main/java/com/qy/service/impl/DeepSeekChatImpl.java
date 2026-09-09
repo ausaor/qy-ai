@@ -2,6 +2,7 @@ package com.qy.service.impl;
 
 import com.qy.entity.AiChatMessage;
 import com.qy.enums.ChatModeType;
+import com.qy.enums.ChatRole;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
 import com.qy.service.IAiChatMessageService;
@@ -82,7 +83,7 @@ public class DeepSeekChatImpl implements IChatService {
         }
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(request.getSessionId());
-        aiChatMessage.setRole("assistant");
+        aiChatMessage.setRole(ChatRole.ASSISTANT.getRole());
         aiChatMessage.setContent(content);
         aiChatMessage.setModel(request.getModel());
         aiChatMessage.setUserId(session != null ? session.getUserId() : null);
@@ -211,48 +212,6 @@ public class DeepSeekChatImpl implements IChatService {
                 .subscribe();
 
         return emitter;
-    }
-
-    @Override
-    public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
-        UserSession session = SessionContext.getSession();
-        String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + request.getSessionId();
-        StringBuilder contentBuilder = new StringBuilder();
-
-        return chatClient.prompt()
-                .system(systemPrompt)
-                .user(request.getContent())
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .options(buildOptions(request))
-                .stream()
-                .chatResponse()
-                .doOnNext(response -> {
-                    try {
-                        String content = response.getResult() != null && response.getResult().getOutput() != null
-                                ? response.getResult().getOutput().getText() : null;
-                        if (content != null) {
-                            contentBuilder.append(content);
-                        }
-                    } catch (Exception e) {
-                        log.warn("Error getting content from response: {}", e.getMessage());
-                    }
-                })
-                .doOnComplete(() -> {
-                    // 当流完成时，保存完整的对话结果
-                    String fullContent = contentBuilder.toString();
-                    if (!fullContent.isEmpty()) {
-                        log.info("Complete mcp chat result: {}", fullContent);
-                        saveAssistantMessage(request, fullContent, session);
-                    }
-                })
-                .onErrorResume(e -> {
-                    log.error("Error in mcp chat: {}", e.getMessage());
-                    return Flux.empty();
-                })
-                .map(chatResponse -> ServerSentEvent.<String>builder()
-                        .data(toJson(chatResponse))
-                        .event("message")
-                        .build());
     }
 
     /**

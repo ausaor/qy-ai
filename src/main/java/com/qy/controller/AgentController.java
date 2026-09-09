@@ -2,6 +2,7 @@ package com.qy.controller;
 
 
 import cn.hutool.core.util.StrUtil;
+import com.qy.enums.ChatRole;
 import com.qy.enums.ChatType;
 import com.qy.exception.GlobalException;
 import com.qy.model.ChatRequest;
@@ -41,7 +42,6 @@ public class AgentController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> agentChat(@PathVariable Long sessionId,
                                                    @RequestParam String content,
-                                                   @RequestParam(defaultValue = "user") String role,
                                                    @RequestParam String model,
                                                    @RequestParam String chatType,
                                                    @RequestPart(required = false) List<MultipartFile> files) {
@@ -55,7 +55,7 @@ public class AgentController {
         ChatRequest request = new ChatRequest();
         request.setContent(content);
         request.setModel(model);
-        request.setRole(role);
+        request.setRole(ChatRole.USER.getRole());
         request.setSessionId(sessionId);
         request.setFiles(files);
         request.setChatType(chatType);

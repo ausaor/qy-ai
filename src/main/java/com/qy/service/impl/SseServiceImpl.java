@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollectionUtil;
 import com.qy.agent.AgentRegistry;
 import com.qy.agent.AgentType;
 import com.qy.entity.AiChatMessage;
+import com.qy.enums.ChatRole;
 import com.qy.factory.ChatServiceFactory;
 import com.qy.model.ChatMessageRequest;
 import com.qy.model.ChatRequest;
@@ -46,13 +47,13 @@ public class SseServiceImpl implements ISseService {
         SseEmitter sseEmitter = new SseEmitter(0L);
         try {
             // 设置对话角色
-            chatRequest.setRole("user");
+            chatRequest.setRole(ChatRole.USER.getRole());
 
             IChatService chatService = chatServiceFactory.getChatService(chatRequest.getModel());
 
             AiChatMessage aiChatMessage = new AiChatMessage();
             aiChatMessage.setSessionId(chatRequest.getSessionId());
-            aiChatMessage.setRole("user");
+            aiChatMessage.setRole(ChatRole.USER.getRole());
             aiChatMessage.setContent(chatRequest.getContent());
             aiChatMessage.setModel(chatRequest.getModel());
 
@@ -73,7 +74,7 @@ public class SseServiceImpl implements ISseService {
 
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(chatRequest.getSessionId());
-        aiChatMessage.setRole("user");
+        aiChatMessage.setRole(ChatRole.USER.getRole());
         aiChatMessage.setContent(chatRequest.getContent());
         aiChatMessage.setModel(chatRequest.getModel());
 
@@ -91,7 +92,7 @@ public class SseServiceImpl implements ISseService {
 
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(chatRequest.getSessionId());
-        aiChatMessage.setRole("user");
+        aiChatMessage.setRole(ChatRole.USER.getRole());
         aiChatMessage.setContent(chatRequest.getContent());
         aiChatMessage.setModel(chatRequest.getModel());
 
@@ -141,7 +142,7 @@ public class SseServiceImpl implements ISseService {
         }
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(request.getSessionId());
-        aiChatMessage.setRole("assistant");
+        aiChatMessage.setRole(ChatRole.ASSISTANT.getRole());
         aiChatMessage.setContent(content);
         aiChatMessage.setModel(request.getModel());
         aiChatMessage.setUserId(session != null ? session.getUserId() : null);
@@ -155,24 +156,11 @@ public class SseServiceImpl implements ISseService {
 
         AiChatMessage aiChatMessage = new AiChatMessage();
         aiChatMessage.setSessionId(request.getSessionId());
-        aiChatMessage.setRole("user");
+        aiChatMessage.setRole(ChatRole.USER.getRole());
         aiChatMessage.setContent(request.getContent());
         aiChatMessage.setModel(request.getModel());
 
         aiChatMessageService.saveMessage(aiChatMessage);
         return chatService.streamMessage(request);
-    }
-
-    @Override
-    public Flux<ServerSentEvent<String>> mcpChat(ChatMessageRequest request) {
-        IChatService chatService = chatServiceFactory.getChatService(request.getModel());
-        AiChatMessage aiChatMessage = new AiChatMessage();
-        aiChatMessage.setSessionId(request.getSessionId());
-        aiChatMessage.setRole("user");
-        aiChatMessage.setContent(request.getContent());
-        aiChatMessage.setModel(request.getModel());
-
-        aiChatMessageService.saveMessage(aiChatMessage);
-        return chatService.mcpChat(request);
     }
 }

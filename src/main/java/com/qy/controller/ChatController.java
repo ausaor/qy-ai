@@ -1,6 +1,7 @@
 package com.qy.controller;
 
 import cn.hutool.core.util.StrUtil;
+import com.qy.enums.ChatRole;
 import com.qy.enums.ChatType;
 import com.qy.exception.GlobalException;
 import com.qy.model.ChatMessageRequest;
@@ -38,9 +39,6 @@ public class ChatController {
      *
      * @param sessionId   会话ID
      * @param content     消息内容
-     * @param role        消息角色（默认：user）
-     * @param maxTokens   生成回复的最大令牌数
-     * @param temperature 控制输出的随机性
      * @return 流式响应
      */
     @GetMapping(value = "/stream/msg/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -48,18 +46,13 @@ public class ChatController {
     public Flux<ChatResponse> streamMessage(
             @PathVariable Long sessionId,
             @RequestParam String content,
-            @RequestParam(defaultValue = "user") String role,
-            @RequestParam String model,
-            @RequestParam(required = false) Integer maxTokens,
-            @RequestParam(required = false) Float temperature) {
+            @RequestParam String model) {
 
         log.info("流式发送消息到会话: sessionId = {}, content = {}", sessionId, content);
 
         ChatMessageRequest request = new ChatMessageRequest();
         request.setContent(content);
-        request.setRole(role);
-        request.setMaxTokens(maxTokens);
-        request.setTemperature(temperature);
+        request.setRole(ChatRole.USER.getRole());
         request.setModel(model);
         request.setSessionId(sessionId);
 
@@ -73,7 +66,6 @@ public class ChatController {
      *
      * @param sessionId 会话ID
      * @param content   消息内容
-     * @param role      消息角色（默认：user）
      * @param model     模型类别
      * @param files     附件文件（可选，支持图片/音频/视频）
      * @return 流式响应
@@ -85,7 +77,6 @@ public class ChatController {
     public Flux<ServerSentEvent<String>> streamChat(
             @PathVariable Long sessionId,
             @RequestParam String content,
-            @RequestParam(defaultValue = "user") String role,
             @RequestParam String model,
             @RequestParam String chatType,
             @RequestPart(required = false) List<MultipartFile> files) {
@@ -99,7 +90,7 @@ public class ChatController {
         ChatRequest request = new ChatRequest();
         request.setContent(content);
         request.setModel(model);
-        request.setRole(role);
+        request.setRole(ChatRole.USER.getRole());
         request.setSessionId(sessionId);
         request.setFiles(files);
         request.setChatType(chatType);
@@ -112,7 +103,6 @@ public class ChatController {
     public SseEmitter sseChat(
             @PathVariable Long sessionId,
             @RequestParam String content,
-            @RequestParam(defaultValue = "user") String role,
             @RequestParam String model) {
 
         log.info("SSE发送消息到会话: sessionId = {}, content = {}", sessionId, content);
@@ -121,26 +111,8 @@ public class ChatController {
         request.setSessionId(sessionId);
         request.setContent(content);
         request.setModel(model);
-        request.setRole(role);
+        request.setRole(ChatRole.USER.getRole());
 
         return sseService.sseChat(request);
-    }
-
-    @GetMapping(value = "/mcp/msg/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "MCP流式获取消息回复", description = "发送消息并流式返回回复")
-    public Flux<ServerSentEvent<String>> mcpChat(
-            @PathVariable Long sessionId,
-            @RequestParam String content,
-            @RequestParam(defaultValue = "user") String role,
-            @RequestParam String model) {
-        log.info("收到消息请求内容: {}", content);
-
-        ChatMessageRequest request = new ChatMessageRequest();
-        request.setModel(model);
-        request.setContent(content);
-        request.setRole(role);
-        request.setSessionId(sessionId);
-
-        return sseService.mcpChat(request);
     }
 }
