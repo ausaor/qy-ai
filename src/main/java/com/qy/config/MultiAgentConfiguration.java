@@ -3,6 +3,8 @@ package com.qy.config;
 import com.qy.agent.AgentRegistry;
 import com.qy.agent.AgentRouterTool;
 import com.qy.agent.AgentType;
+import com.qy.contant.PromptConstant;
+import com.qy.tools.TextToSqlTools;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
@@ -98,5 +100,25 @@ public class MultiAgentConfiguration {
                 - 其他所有问题 → general
                 """);
         return sb.toString();
+    }
+
+    /**
+     * 自然语言转Sql Agent
+     */
+    @Bean
+    public ChatClient textToSqlAgent(
+            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
+            TextToSqlTools textToSqlTools,
+            AgentRegistry registry) {
+        ChatClient client = ChatClient.builder(model)
+                .defaultSystem(PromptConstant.TEXT_TO_SQL_PROMPT)
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new SimpleLoggerAdvisor()
+                )
+                .defaultTools(textToSqlTools)
+                .build();
+        registry.register(AgentType.TEXT_TO_SQL, client, "自然语言转sql");
+        return client;
     }
 }
