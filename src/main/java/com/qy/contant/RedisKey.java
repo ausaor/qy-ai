@@ -6,4 +6,7 @@ public interface RedisKey {
 
     // 用户账号封禁key
     public final static String IM_USER_BAN_ACCOUNT = IM_CACHE + "user:ban-account:";
+
+    // AI 对话记忆缓存前缀（ChatMemory Redis 持久化，key = 前缀 + conversationId）
+    public final static String CHAT_MEMORY = "ai:chat:memory:";
 }

@@ -27,9 +27,9 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         wrapper.eq(AiChatSession::getUserId, userId);
 
         AiChatSession chatSession = this.getOne(wrapper);
-        if (ObjectUtil.isNotNull(chatSession) && !chatSession.getType().equals(chatRequest.getChatType())) {
+        /*if (ObjectUtil.isNotNull(chatSession) && !chatSession.getType().equals(chatRequest.getChatType())) {
             throw new GlobalException("对话模式已改变，请重新创建一个会话");
-        }
+        }*/
 
         if (ObjectUtil.isNull(chatSession)) {
             AiChatSession aiChatSession = new AiChatSession();

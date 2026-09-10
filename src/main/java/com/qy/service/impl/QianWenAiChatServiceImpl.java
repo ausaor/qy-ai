@@ -74,7 +74,7 @@ public class QianWenAiChatServiceImpl implements IChatService {
     /** DashScope OpenAI 兼容客户端（音频场景直接构造请求，绕过 Spring AI 的 input_audio 纯 base64 转换） */
     private final OpenAIClient qianwenOpenAiClient;
 
-    /** 对话记忆（音频场景手动维护，仅存文本，避免 media 被 Spring AI 再次转换） */
+    /** 对话记忆（Redis 持久化；音频/视频场景手动维护，仅存文本，避免 media 被 Spring AI 再次转换） */
     private final ChatMemory chatMemory;
 
     private final IAiChatMessageService aiChatMessageService;
