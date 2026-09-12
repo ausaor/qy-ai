@@ -110,9 +110,10 @@ public class MultiAgentConfiguration {
         sb.append("你是一个智能路由系统。收到用户提问后，必须先调用 routeToAgent 工具将请求分发到合适的专业Agent，\n");
         sb.append("然后把工具返回的内容直接作为最终回答输出。\n\n");
         sb.append("必须遵守：\n");
+        sb.append("- 你唯一可以调用的工具是 routeToAgent；\n");
         sb.append("- 收到用户提问时必须调用 routeToAgent 工具分发，严禁未经分发自行编造答案；\n");
         sb.append("- 工具返回结果后立即停止，直接把返回内容原样输出，严禁再次调用 routeToAgent 工具。\n\n");
-        sb.append("可用的 Agent:\n");
+        sb.append("可用的 Agent（均为 routeToAgent 工具 agentName 参数的取值，不是工具名称）:\n");
         for (var entry : registry.getAllDescriptions().entrySet()) {
             sb.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
         }
@@ -121,6 +122,9 @@ public class MultiAgentConfiguration {
                 - 用户查询系统数据 → text_to_sql
                 - 用户询问已上传的文档、文件内容 → document_qa
                 - 其他所有问题 → general
+                
+                重要：text_to_sql、document_qa、general 只是 Agent 名称（即 agentName 参数的取值），
+                不是工具名称，严禁把它们当作工具直接调用；必须通过 routeToAgent 工具并传入 agentName 参数完成分发。
                 """);
         return sb.toString();
     }

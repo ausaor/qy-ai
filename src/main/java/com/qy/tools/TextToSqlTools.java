@@ -50,6 +50,22 @@ public class TextToSqlTools {
     private static final Pattern READ_ONLY_START = Pattern.compile("^(select|with)\\b", Pattern.CASE_INSENSITIVE);
 
     /**
+     * 当前线程内 executeQuerySql 的调用次数（无论执行成败均计数）。
+     * 路由层（AgentRouterTool）据此判断子 Agent 本轮是否真正执行过查询，
+     * 不依赖响应文本特征，杜绝模型编造 SQL 块或表格绕过检测。
+     * 工具调用与子 Agent 的 spec.call() 在同一线程内同步执行，ThreadLocal 语义成立；
+     * 线程池复用导致的计数累积不影响调用前后的差值比较。
+     */
+    private static final ThreadLocal<Integer> EXECUTE_COUNT = ThreadLocal.withInitial(() -> 0);
+
+    /**
+     * 供路由层读取当前线程的查询执行次数
+     */
+    public static int currentThreadExecuteCount() {
+        return EXECUTE_COUNT.get();
+    }
+
+    /**
      * 禁止出现的写操作、结构变更及危险函数关键字
      */
     private static final Pattern FORBIDDEN_KEYWORD = Pattern.compile(
@@ -188,6 +204,9 @@ public class TextToSqlTools {
     public Map<String, Object> executeQuerySql(
             @ToolParam(description = "待执行的查询语句，必须以 SELECT 或 WITH 开头并带 LIMIT") String sql) {
         log.info("执行查询SQL: {}", sql);
+        // 模型只要发起执行调用就计数：后续校验/执行成败均说明其在走正确流程，
+        // 路由层据此避免把"执行失败后的错误说明"误判为编造数据
+        EXECUTE_COUNT.set(EXECUTE_COUNT.get() + 1);
         Map<String, Object> result = new HashMap<>();
 
         String executeSql;
