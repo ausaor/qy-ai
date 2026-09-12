@@ -34,7 +34,7 @@ public class AdvancedRagConfiguration {
     public VectorStoreDocumentRetriever vectorStoreDocumentRetriever(VectorStore vectorStore) {
         return VectorStoreDocumentRetriever.builder()
                 .vectorStore(vectorStore)
-                .similarityThreshold(0.4)
+                .similarityThreshold(0.3)
                 .topK(10)
                 .build();
     }

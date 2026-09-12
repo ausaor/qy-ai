@@ -57,6 +57,33 @@ public class Bm25DocumentRetriever implements DocumentRetriever {
         }
     }
 
+    /**
+     * 获取 BM25 索引中的文档总数
+     */
+    public int getDocumentCount() {
+        lock.readLock().lock();
+        try {
+            return documents.size();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * 获取不同来源文件的数量
+     */
+    public long getSourceFileCount() {
+        lock.readLock().lock();
+        try {
+            return documents.stream()
+                    .map(d -> d.sourceFile)
+                    .distinct()
+                    .count();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
     @Override
     public List<Document> retrieve(Query query) {
         if (documents.isEmpty()) {

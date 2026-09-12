@@ -66,8 +66,8 @@ public class MultiFormatDocumentReader {
                 resource,
                 MarkdownDocumentReaderConfig.builder()
                         .withHorizontalRuleCreateDocument(true)
-                        .withIncludeCodeBlock(false)
-                        .withIncludeBlockquote(false)
+                        .withIncludeCodeBlock(true)
+                        .withIncludeBlockquote(true)
                         .build()
         );
         return reader.read();

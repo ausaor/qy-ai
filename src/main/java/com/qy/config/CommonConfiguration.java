@@ -67,7 +67,11 @@ public class CommonConfiguration {
                 .initializeSchema(true)
                 .prefix("doc:")
                 .metadataFields(
-                        MetadataField.tag("chat_id")
+                        // 声明实际写入并使用到的元数据字段，
+                        // 否则检索结果会丢失这些元数据（引用标注将显示"未知来源"）
+                        MetadataField.text("source_file"),
+                        MetadataField.text("chunk_index"),
+                        MetadataField.text("file_type")
                 )
                 .build();
     }

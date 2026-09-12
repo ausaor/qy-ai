@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -34,14 +36,22 @@ public class DocumentServiceImpl implements IDocumentService {
     @Override
     public void writeToVectorStoreAsync(Resource resource, String originalFilename) {
         try {
-            writeToVectorStore(resource, originalFilename);
+            log.info("异步文档处理开始: {}", originalFilename);
+            int chunkCount = writeToVectorStore(resource, originalFilename);
+            log.info("异步文档处理完成: {}, 共 {} 个 chunk 已写入向量库和 BM25 索引",
+                    originalFilename, chunkCount);
+        } catch (Exception e) {
+            // 异步任务异常必须记录，否则上传接口返回成功但文档从未写入，用户无法感知
+            log.error("异步文档处理失败: {}, 原因: {}", originalFilename, e.getMessage(), e);
         } finally {
             cleanupTempFile(resource);
         }
     }
 
-    private void writeToVectorStore(Resource resource, String originalFilename) {
+    @Override
+    public int writeToVectorStore(Resource resource, String originalFilename) {
         String contentType = detectContentType(originalFilename);
+        log.info("开始处理文档: {}, MIME: {}", originalFilename, contentType);
 
         // 1.使用多格式读取器解析文档
         List<Document> documents = documentReader.read(resource, originalFilename, contentType);
@@ -62,7 +72,17 @@ public class DocumentServiceImpl implements IDocumentService {
 
         // 4.同步写入 BM25 索引
         bm25DocumentRetriever.addDocuments(chunks);
-        log.info("成功写入 BM25 索引 {} 个 chunk", chunks.size());
+        log.info("文档处理完成: {} → {} 个 chunk 已写入向量库和 BM25 索引",
+                originalFilename, chunks.size());
+        return chunks.size();
+    }
+
+    @Override
+    public Map<String, Object> getDocumentStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("documentCount", bm25DocumentRetriever.getDocumentCount());
+        stats.put("sourceFileCount", bm25DocumentRetriever.getSourceFileCount());
+        return stats;
     }
 
     /**

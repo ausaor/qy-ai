@@ -14,6 +14,7 @@ import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 
 /**
  * 多 Agent 系统配置
@@ -36,8 +37,9 @@ public class MultiAgentConfiguration {
     public ChatClient documentQaAgent(
             @Qualifier("qianwenChatModel") OpenAiChatModel model,
             RetrievalAugmentationAdvisor advancedRagAdvisor,
-            ChatMemory chatMemory) {
-        return ChatClient.builder(model)
+            ChatMemory chatMemory,
+            AgentRegistry registry) {
+        ChatClient client = ChatClient.builder(model)
                 .defaultSystem("""
                         你是文档问答助手。请根据提供的上下文信息回答用户问题。
                         回答时必须使用 [N] 标注引用来源，例如 [1]、[2]。
@@ -49,6 +51,8 @@ public class MultiAgentConfiguration {
                         new SimpleLoggerAdvisor()
                 )
                 .build();
+        registry.register(AgentType.DOCUMENT_QA, client, "文档问答（支持 RAG）");
+        return client;
     }
 
     /**
@@ -71,8 +75,10 @@ public class MultiAgentConfiguration {
 
     /**
      * Router Agent — 意图分发入口
+     * DependsOn 确保所有子 Agent 先注册到 Registry，再构建路由提示词
      */
     @Bean
+    @DependsOn({"generalAgent", "textToSqlAgent", "documentQaAgent"})
     public ChatClient routerAgent(
             @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
             AgentRouterTool routerTool, AgentRegistry registry) {

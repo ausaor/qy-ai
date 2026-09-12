@@ -31,6 +31,15 @@ public class DocumentController {
     private final IDocumentService documentService;
 
     /**
+     * 查询已索引的文档统计信息
+     * 用于确认文档是否已成功写入向量库和 BM25 索引
+     */
+    @RequestMapping("/stats")
+    public Result stats() {
+        return ResultUtils.success(documentService.getDocumentStats());
+    }
+
+    /**
      * 上传文档（支持多格式）
      */
     @RequestMapping("/upload")
