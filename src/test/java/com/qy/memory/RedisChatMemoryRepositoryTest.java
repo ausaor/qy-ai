@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -99,5 +100,46 @@ class RedisChatMemoryRepositoryTest {
         repository.saveAll("1-100", List.of());
 
         verify(redisTemplate).delete(KEY_PREFIX + "1-100");
+    }
+
+    @Test
+    void saveAllShouldSkipToolRelatedMessages() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        RedisChatMemoryRepository repository =
+                new RedisChatMemoryRepository(redisTemplate, objectMapper, KEY_PREFIX, Duration.ofDays(7));
+
+        // 工具调用消息：无正文、携带 toolCalls
+        AssistantMessage toolCallMessage = AssistantMessage.builder()
+                .toolCalls(List.of(
+                        new AssistantMessage.ToolCall("call-1", "function", "getCityWeather", "{\"cityName\":\"北京\"}")))
+                .build();
+        // 工具返回消息
+        ToolResponseMessage toolResponseMessage = ToolResponseMessage.builder()
+                .responses(List.of(new ToolResponseMessage.ToolResponse("call-1", "getCityWeather", "{\"weather\":\"晴\"}")))
+                .build();
+
+        repository.saveAll("1-100", List.of(
+                new UserMessage("今天北京天气怎么样"),
+                toolCallMessage,
+                toolResponseMessage,
+                new AssistantMessage("北京今天晴，气温25℃")));
+
+        // 工具相关消息被过滤，仅持久化 USER 与最终 ASSISTANT 回复
+        org.mockito.ArgumentCaptor<String> jsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).set(eq(KEY_PREFIX + "1-100"), jsonCaptor.capture(), any(Duration.class));
+
+        ValueOperations<String, String> readBackOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(readBackOperations);
+        when(readBackOperations.get(KEY_PREFIX + "1-100")).thenReturn(jsonCaptor.getValue());
+
+        List<Message> restored = repository.findByConversationId("1-100");
+        assertEquals(2, restored.size());
+        assertEquals(MessageType.USER, restored.get(0).getMessageType());
+        assertEquals("今天北京天气怎么样", restored.get(0).getText());
+        assertEquals(MessageType.ASSISTANT, restored.get(1).getMessageType());
+        assertEquals("北京今天晴，气温25℃", restored.get(1).getText());
     }
 }

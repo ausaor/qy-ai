@@ -4,6 +4,7 @@ import com.qy.agent.AgentRegistry;
 import com.qy.agent.AgentRouterTool;
 import com.qy.agent.AgentType;
 import com.qy.contant.PromptConstant;
+import com.qy.tools.CommonTools;
 import com.qy.tools.TextToSqlTools;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -11,6 +12,7 @@ import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -61,13 +63,22 @@ public class MultiAgentConfiguration {
     @Bean
     public ChatClient generalAgent(
             @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
+            CommonTools commonTools,
             AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
-                .defaultSystem("你是一个博古通今的智能助手，可以回答各种通用问题。")
+                .defaultSystem("""
+                        你是一个博古通今的智能助手，可以回答各种通用问题。
+                        当用户询问天气时，必须调用 getCityWeather 工具获取实时天气数据后再回答：
+                        - 每次用户询问天气都必须重新调用 getCityWeather 工具，即使对话历史中已有天气信息，
+                          也严禁直接引用历史对话中的天气数据回答；
+                        - 若用户未指明城市或日期，结合上下文推断；无法确定时先向用户确认；
+                        - 获取工具返回结果后，直接基于结果回答用户，不要重复调用工具。
+                        """)
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
                         new SimpleLoggerAdvisor()
                 )
+                .defaultTools(commonTools)
                 .build();
         registry.register(AgentType.GENERAL, client, "通用对话和问答");
         return client;
@@ -76,18 +87,18 @@ public class MultiAgentConfiguration {
     /**
      * Router Agent — 意图分发入口
      * DependsOn 确保所有子 Agent 先注册到 Registry，再构建路由提示词
+     * 注意：Router 不挂载 MessageChatMemoryAdvisor。路由决策只依赖当前查询，
+     * 若注入历史对话，模型会模仿历史中"直接回答"的模式跳过 routeToAgent 工具，
+     * 自行编造答案；多轮指代由子 Agent（如 general）的记忆负责补全。
      */
     @Bean
     @DependsOn({"generalAgent", "textToSqlAgent", "documentQaAgent"})
     public ChatClient routerAgent(
-            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
+            @Qualifier("qianwenChatModel") OpenAiChatModel model,
             AgentRouterTool routerTool, AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
                 .defaultSystem(buildRouterSystemPrompt(registry))
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
-                        new SimpleLoggerAdvisor()
-                )
+                .defaultAdvisors(new SimpleLoggerAdvisor())
                 .defaultTools(routerTool)
                 .build();
         registry.register(AgentType.ROUTER, client, "意图分类和路由分发");
@@ -96,7 +107,11 @@ public class MultiAgentConfiguration {
 
     private String buildRouterSystemPrompt(AgentRegistry registry) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个智能路由系统。根据用户意图调用 routeToAgent 工具将请求分发到合适的专业Agent。\n\n");
+        sb.append("你是一个智能路由系统。收到用户提问后，必须先调用 routeToAgent 工具将请求分发到合适的专业Agent，\n");
+        sb.append("然后把工具返回的内容直接作为最终回答输出。\n\n");
+        sb.append("必须遵守：\n");
+        sb.append("- 收到用户提问时必须调用 routeToAgent 工具分发，严禁未经分发自行编造答案；\n");
+        sb.append("- 工具返回结果后立即停止，直接把返回内容原样输出，严禁再次调用 routeToAgent 工具。\n\n");
         sb.append("可用的 Agent:\n");
         for (var entry : registry.getAllDescriptions().entrySet()) {
             sb.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");

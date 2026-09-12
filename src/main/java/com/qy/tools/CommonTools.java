@@ -1,10 +1,9 @@
-package com.qy.service.impl;
+package com.qy.tools;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.qy.service.IMcpToolService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -16,11 +15,10 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class McpToolServiceImpl implements IMcpToolService {
+public class CommonTools {
     @Value("${tian-api.key}")
     private String tianApiKey;
 
-    @Override
     @Tool(name = "getCityWeather", description = "获取城市天气")
     public Map<String, Object> getCityWeather(
             @ToolParam(description = "城市名称") String cityName,
@@ -37,6 +35,7 @@ public class McpToolServiceImpl implements IMcpToolService {
 
         try {
             String resultStr = HttpUtil.get("https://apis.tianapi.com/tianqi/index", params);
+            log.info("获取城市天气结果: {}", resultStr);
             JSONObject jsonObject = JSONUtil.parseObj(resultStr);
             if (MapUtil.isNotEmpty(jsonObject) && "200".equals(jsonObject.getStr("code"))) {
                 JSONObject resultJson = jsonObject.getJSONObject("result");
@@ -54,6 +53,7 @@ public class McpToolServiceImpl implements IMcpToolService {
                 result.put("tips", resultJson.getStr("tips"));
             }
         } catch (Exception e) {
+            log.error("获取城市天气错误: {}", e.getMessage());
             result.put("cityName", cityName);
             result.put("date", date);
             result.put("error", "获取天气数据失败: " + e.getMessage());

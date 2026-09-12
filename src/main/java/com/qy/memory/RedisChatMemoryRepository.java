@@ -24,6 +24,8 @@ import java.util.Objects;
  * 每个会话（conversationId）对应一个 Redis String 键：
  * <pre>ai:chat:memory:{conversationId} -> [{"type":"USER","content":"..."},{"type":"ASSISTANT","content":"..."}]</pre>
  * 消息仅存类型与文本内容，避免 media / toolCalls / metadata 等复杂字段的序列化问题；
+ * 工具调用相关消息（TOOL 类型与携带 toolCalls 的 AssistantMessage）不持久化，
+ * 避免模型在后续轮次直接复用历史中的旧工具结果而不再发起新的工具调用；
  * 整体带 TTL 自动过期，每次保存自动续期，长期不活跃的会话记忆会被 Redis 自动回收。
  * <p>
  * Redis 不可用时降级处理：读取返回空历史、写入仅记日志，保证核心对话流程不受记忆存储故障影响。
@@ -88,7 +90,10 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
         try {
             List<ChatMemoryMessageDto> messageDtos = messages == null
                     ? List.of()
-                    : messages.stream().map(ChatMemoryMessageDto::from).toList();
+                    : messages.stream()
+                            .map(ChatMemoryMessageDto::from)
+                            .filter(Objects::nonNull)
+                            .toList();
 
             // 无消息时直接清理，避免残留空键
             if (messageDtos.isEmpty()) {
@@ -132,6 +137,13 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
 
         static ChatMemoryMessageDto from(Message message) {
             MessageType messageType = message.getMessageType() != null ? message.getMessageType() : MessageType.USER;
+            // 工具相关消息不持久化：工具结果只服务于当轮工具调用，
+            // 若写入历史，模型在后续轮次会直接复用旧结果，不再发起新的工具调用；
+            // 携带 toolCalls 的 AssistantMessage 是工具调用消息（无正文），同样不持久化
+            if (messageType == MessageType.TOOL
+                    || (message instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls())) {
+                return null;
+            }
             String text = message.getText() != null ? message.getText() : "";
             return new ChatMemoryMessageDto(messageType.name(), text);
         }

@@ -93,4 +93,4 @@ mybatis-plus:
 
 
 tian-api:
-  key: xxxxxxxxxxxxxxxxxxxxx
+  key: ${TIAN_API_KEY:}
