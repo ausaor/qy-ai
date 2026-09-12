@@ -10,6 +10,7 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,24 +30,25 @@ public class MultiAgentConfiguration {
     /**
      * 文档问答 Agent — 基于对话上下文的文档问答
      * 注意：RAG 管线（RetrievalAugmentationAdvisor）需在配置 VectorStore 后再启用
+     * 使用 RetrievalAugmentationAdvisor 替代 QuestionAnswerAdvisor
      */
     @Bean
     public ChatClient documentQaAgent(
-            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
-            AgentRegistry registry) {
-        ChatClient client = ChatClient.builder(model)
+            @Qualifier("qianwenChatModel") OpenAiChatModel model,
+            RetrievalAugmentationAdvisor advancedRagAdvisor,
+            ChatMemory chatMemory) {
+        return ChatClient.builder(model)
                 .defaultSystem("""
-                        你是文档问答助手。根据用户上传的文档回答问题。
-                        回答时必须使用 [N] 标注引用来源。
-                        如果文档中没有相关信息，明确告知用户。
+                        你是文档问答助手。请根据提供的上下文信息回答用户问题。
+                        回答时必须使用 [N] 标注引用来源，例如 [1]、[2]。
+                        如果上下文中没有相关信息，请明确告知用户无法回答。
                         """)
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        advancedRagAdvisor,
                         new SimpleLoggerAdvisor()
                 )
                 .build();
-        registry.register(AgentType.DOCUMENT_QA, client, "基于上传文档的智能问答");
-        return client;
     }
 
     /**

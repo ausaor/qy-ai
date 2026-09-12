@@ -4,6 +4,8 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,6 +33,9 @@ public class QianwenAiConfig {
 
     @Value("${spring.ai.qianwen.chat.options.max-tokens}")
     private int maxTokens;  // 最大标记数
+
+    @Value("${spring.ai.qianwen.embedding.options.model}")
+    private String embeddingModel;  // Embedding 模型名称，如 text-embedding-v4
 
     /**
      * 创建千问的 OpenAI 兼容客户端（指向 DashScope compatible-mode 接口）
@@ -67,6 +72,20 @@ public class QianwenAiConfig {
                 .openAiClient(qianwenOpenAiClient)
                 .openAiClientAsync(qianwenOpenAiClient.async())
                 .options(qianwenChatOptions)
+                .build();
+    }
+
+    /**
+     * 千问 Embedding 模型（指向 DashScope compatible-mode 的 /embeddings 端点）
+     * 向量库写入使用；DeepSeek 不提供 embedding API，因此必须使用 DashScope 的向量模型
+     */
+    @Bean
+    public OpenAiEmbeddingModel qianwenEmbeddingModel(OpenAIClient qianwenOpenAiClient) {
+        return OpenAiEmbeddingModel.builder()
+                .openAiClient(qianwenOpenAiClient)
+                .options(OpenAiEmbeddingOptions.builder()
+                        .model(embeddingModel)
+                        .build())
                 .build();
     }
 }

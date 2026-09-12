@@ -58,6 +58,10 @@ spring:
           multimodal-model: qwen3.5-omni-plus  # 多模态模型（图片/音频/视频），文本对话仍用 qwen-plus
           temperature: 0.7
           max-tokens: 2000
+      # 向量库写入使用的 Embedding 模型（DeepSeek 不提供 embedding API）
+      embedding:
+        options:
+          model: text-embedding-v4
 
     # MCP Server 2.0：Streamable-HTTP 协议
     mcp:

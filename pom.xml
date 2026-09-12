@@ -33,6 +33,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-ai.version>2.0.1</spring-ai.version>
         <openai-java.version>4.39.1</openai-java.version>
+        <jedis.version>7.4.1</jedis.version>
     </properties>
     <dependencyManagement>
         <dependencies>

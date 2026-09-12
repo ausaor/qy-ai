@@ -13,12 +13,13 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore.MetadataField;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
-import redis.clients.jedis.JedisPooled;
+import redis.clients.jedis.RedisClient;
 
 @Configuration
 public class CommonConfiguration {
@@ -51,22 +52,25 @@ public class CommonConfiguration {
     }
 
     @Bean
-    public JedisPooled jedisPooled(JedisConnectionFactory connectionFactory) {
-        return new JedisPooled(connectionFactory.getStandaloneConfiguration().getHostName(),
-                connectionFactory.getStandaloneConfiguration().getPort());
+    public RedisClient redisClient() {
+        if (redisPassword != null && !redisPassword.isEmpty()) {
+            return RedisClient.create(redisHost, redisPort, null, redisPassword);
+        }
+        return RedisClient.create(redisHost, redisPort);
     }
 
-//    @Bean
-//    public VectorStore vectorStore(JedisPooled jedisPooled, OpenAiEmbeddingModel embeddingModel) {
-//        return RedisVectorStore.builder(jedisPooled, embeddingModel)
-//                .indexName("spring-ai-index")
-//                .initializeSchema(true)
-//                .prefix("doc:")
-//                .metadataFields(
-//                        MetadataField.tag("chat_id")
-//                )
-//                .build();
-//    }
+    @Bean
+    public VectorStore vectorStore(RedisClient redisClient,
+                                   @Qualifier("qianwenEmbeddingModel") OpenAiEmbeddingModel embeddingModel) {
+        return RedisVectorStore.builder(redisClient, embeddingModel)
+                .indexName("spring-ai-index")
+                .initializeSchema(true)
+                .prefix("doc:")
+                .metadataFields(
+                        MetadataField.tag("chat_id")
+                )
+                .build();
+    }
 //
 //    @Bean
 //    public ChatClient chatClient(OpenAiChatModel model, ChatMemory chatMemory){
