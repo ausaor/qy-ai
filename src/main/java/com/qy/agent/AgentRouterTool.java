@@ -47,7 +47,7 @@ public class AgentRouterTool {
 
     @Tool(description = "将用户请求路由到指定的专业Agent。" +
             "可选的 agentName 值: text_to_sql(自然语言转sql), " +
-            "send_email(发送邮件), " +
+            "send_email(发送邮件，含问候邮件与系统通知邮件), " +
             "document_qa(文档问答), general(通用对话)")
     public String routeToAgent(
             @ToolParam(description = "目标Agent名称") String agentName,
@@ -248,7 +248,7 @@ public class AgentRouterTool {
         return routeToAgent(AgentType.DOCUMENT_QA.getId(), query, toolContext);
     }
 
-    @Tool(name = "send_email", description = "将用户查询交给邮件发送 Agent 处理，等价于 routeToAgent(agentName='send_email')")
+    @Tool(name = "send_email", description = "将用户查询交给邮件发送 Agent 处理（问候邮件、系统通知邮件），等价于 routeToAgent(agentName='send_email')")
     public String routeToSendEmail(
             @ToolParam(description = "用户的查询内容") String query,
             ToolContext toolContext) {

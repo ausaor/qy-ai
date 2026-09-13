@@ -13,9 +13,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
 import java.util.List;
 import java.util.Map;
@@ -272,5 +274,141 @@ class EmailToolsTest {
         emailTools.sendGreetingEmail(List.of("11111111@qq.com"), null, "愿你开心！");
 
         assertEquals("来自青语的一份问候", mimeMessage.getSubject());
+    }
+
+    // ==================== 发送系统通知邮件 ====================
+
+    @Test
+    @DisplayName("发送系统通知：邮箱未注册时应拒绝发送")
+    void sendNotificationShouldRejectUnregisteredEmail() {
+        when(userMapper.selectList(any())).thenReturn(List.of());
+
+        Map<String, Object> result = emailTools.sendSystemNotification(
+                "系统维护", List.of("unknown@example.com"), "维护通知", "系统将于今晚维护。");
+
+        assertEquals(Boolean.FALSE, result.get("success"));
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("发送系统通知：@qy.com 结尾的内部邮箱应拒绝发送")
+    void sendNotificationShouldRejectInternalEmail() {
+        Map<String, Object> result = emailTools.sendSystemNotification(
+                "系统维护", List.of("internal@qy.com"), "维护通知", "系统将于今晚维护。");
+
+        assertEquals(Boolean.FALSE, result.get("success"));
+        assertNotNull(result.get("error"));
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("发送系统通知：通知正文为空时应拒绝发送")
+    void sendNotificationShouldRejectBlankContent() {
+        Map<String, Object> result = emailTools.sendSystemNotification(
+                "系统维护", List.of("11111111@qq.com"), "维护通知", "");
+
+        assertEquals(Boolean.FALSE, result.get("success"));
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("发送系统通知：单个收件人应使用 To 直发，且不使用 Bcc")
+    void sendNotificationShouldUseToForSingleRecipient() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        Map<String, Object> result = emailTools.sendSystemNotification(
+                "系统维护", List.of("11111111@qq.com"), "青语系统维护通知", "系统将于今晚 22:00 维护。");
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        Address[] to = mimeMessage.getRecipients(Message.RecipientType.TO);
+        assertEquals(1, to.length);
+        assertNull(mimeMessage.getRecipients(Message.RecipientType.BCC));
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    @DisplayName("发送系统通知：多个收件人应使用密送 Bcc 发送，保护邮箱隐私")
+    void sendNotificationShouldUseBccForMultipleRecipients() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any())).thenReturn(List.of(
+                buildUser("A", "甲", "a@qq.com"),
+                buildUser("B", "乙", "b@qq.com")));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>群发系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        Map<String, Object> result = emailTools.sendSystemNotification(
+                "系统公告", List.of("a@qq.com", "b@qq.com"), "青语系统公告", "各位用户，青语新版本已上线。");
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        Address[] bcc = mimeMessage.getRecipients(Message.RecipientType.BCC);
+        assertEquals(2, bcc.length);
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    @DisplayName("发送系统通知：主题超过 50 个字时应截断保留前 50 个字")
+    void sendNotificationShouldTruncateLongSubject() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        String longSubject = "青语系统维护通知：为提供更稳定的服务，我们计划于本周六晚十点至次日凌晨两点对系统进行停机维护升级，期间所有服务将暂停使用，请各位用户合理安排使用时间并相互转告，感谢您的理解与支持";
+        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), longSubject, "维护内容。");
+
+        String actualSubject = mimeMessage.getSubject();
+        assertNotNull(actualSubject);
+        assertEquals(50, actualSubject.length());
+    }
+
+    @Test
+    @DisplayName("发送系统通知：未提供主题时应使用默认主题")
+    void sendNotificationShouldUseDefaultSubjectWhenMissing() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), null, "维护内容。");
+
+        assertEquals("青语系统通知", mimeMessage.getSubject());
+    }
+
+    @Test
+    @DisplayName("发送系统通知：通知类型不在允许范围内时应归一化为系统通知")
+    void sendNotificationShouldNormalizeUnknownType() {
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
+
+        emailTools.sendSystemNotification("随便的类型", List.of("11111111@qq.com"), "通知", "内容。");
+
+        ArgumentCaptor<Context> captor = ArgumentCaptor.forClass(Context.class);
+        verify(templateEngine).process(eq("system-notification"), captor.capture());
+        assertEquals("系统通知", captor.getValue().getVariable("notificationType"));
     }
 }

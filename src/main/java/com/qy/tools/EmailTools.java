@@ -47,24 +47,44 @@ public class EmailTools {
     private static final String GREETING_TEMPLATE = "greeting-email";
 
     /**
+     * 系统通知邮件模版名（对应 templates/system-notification.html）
+     */
+    private static final String SYSTEM_NOTIFICATION_TEMPLATE = "system-notification";
+
+    /**
      * 发件人名称
      */
     private static final String SENDER_NAME = "聴夏";
 
     /**
-     * 默认邮件主题：大模型未生成主题时的兜底值
+     * 默认问候邮件主题：大模型未生成主题时的兜底值
      */
     private static final String GREETING_SUBJECT = "来自青语的一份问候";
 
     /**
-     * 邮件主题最大长度（字）：主题由大模型生成，超过时自动截断
+     * 默认系统通知主题：大模型未生成主题时的兜底值
+     */
+    private static final String SYSTEM_SUBJECT_DEFAULT = "青语系统通知";
+
+    /**
+     * 问候邮件主题最大长度（字）：主题由大模型生成，超过时自动截断
      */
     private static final int SUBJECT_MAX_LENGTH = 20;
+
+    /**
+     * 系统通知主题最大长度（字）：主题由大模型生成，超过时自动截断
+     */
+    private static final int SYSTEM_SUBJECT_MAX_LENGTH = 50;
 
     /**
      * 系统内部邮箱后缀：以该后缀结尾的邮箱不参与邮件发送（查询时过滤、发送时拒绝）
      */
     private static final String INTERNAL_EMAIL_SUFFIX = "@qy.com";
+
+    /**
+     * 系统通知允许的通知类型：模型传入其他值时归一化为「系统通知」
+     */
+    private static final Set<String> NOTIFICATION_TYPES = Set.of("系统上线", "功能发布", "系统维护", "系统公告");
 
     private final UserMapper userMapper;
 
@@ -207,6 +227,82 @@ public class EmailTools {
             log.info("问候邮件发送成功: {} -> {} 位收件人", senderEmail, recipients.size());
         } catch (Exception e) {
             log.error("问候邮件发送失败: {}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("error", "邮件发送失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 发送系统通知邮件：使用 templates/system-notification.html 模版渲染正文。
+     * 用于系统上线、功能发布、系统维护、系统公告等官方通知场景。
+     * 主题与通知正文由大模型根据用户输入生成（主题不超过 50 个字，超长自动截断，未提供时使用默认主题）。
+     * 内部会再次强校验收件邮箱在系统中已注册，未注册直接拒绝，防止跳过校验步骤。
+     * 以 @qy.com 结尾的系统内部邮箱不允许发送，一律拒绝。
+     * 单个收件人使用 To 直发；多个收件人自动使用密送（Bcc），所有接收人互不可见对方的邮箱地址。
+     */
+    @Tool(name = "sendSystemNotification", description = "发送系统通知邮件（系统上线、功能发布、系统维护、系统公告等）。"
+            + "参数 emails 必须是 verifyRecipient 或 getAllUserEmails 校验通过后返回的注册邮箱列表；"
+            + "内部会再次校验每个邮箱是否已注册，未注册将拒绝发送；@qy.com 结尾的系统内部邮箱一律拒绝发送。"
+            + "多个收件人时自动使用密送（Bcc）发送，接收人之间互不可见邮箱；只有 1 个收件人时使用普通发送（To）。"
+            + "subject 为邮件主题、content 为通知正文，均由你结合通知类型与用户输入生成，主题不超过 50 个字。"
+            + "邮件正文使用系统通知模版渲染，模版内固定包含项目名称「青语」与发送人「聴夏」")
+    public Map<String, Object> sendSystemNotification(
+            @ToolParam(description = "通知类型，四选一：系统上线 / 功能发布 / 系统维护 / 系统公告") String notificationType,
+            @ToolParam(description = "收件人邮箱列表（必须来自 verifyRecipient 或 getAllUserEmails 的校验结果，不得包含 @qy.com 结尾的邮箱）") List<String> emails,
+            @ToolParam(description = "邮件主题，结合通知类型与内容生成，不超过 50 个字") String subject,
+            @ToolParam(description = "通知正文内容，正式清晰，包含通知关键信息（时间、影响范围、操作建议等），可分段表述") String content) {
+
+        log.info("发送系统通知邮件: type = {}, emails = {}, subject = {}", notificationType, emails, subject);
+        Map<String, Object> result = new HashMap<>();
+
+        List<String> recipients = normalizeEmails(emails);
+        if (recipients.isEmpty()) {
+            result.put("success", false);
+            result.put("error", "收件人邮箱列表为空，请先通过 verifyRecipient 或 getAllUserEmails 获取可用邮箱");
+            return result;
+        }
+        if (!StringUtils.hasText(content)) {
+            result.put("success", false);
+            result.put("error", "通知正文内容不能为空");
+            return result;
+        }
+
+        // 强校验：@qy.com 结尾的系统内部邮箱不允许发送
+        List<String> internalEmails = recipients.stream()
+                .filter(this::isInternalEmail)
+                .toList();
+        if (!internalEmails.isEmpty()) {
+            result.put("success", false);
+            result.put("error", "以下邮箱为系统内部邮箱（" + INTERNAL_EMAIL_SUFFIX + " 结尾），不允许发送: " + String.join(", ", internalEmails));
+            return result;
+        }
+
+        // 强校验：所有邮箱必须在系统用户表中已注册且状态正常
+        List<String> invalidEmails = findUnregisteredEmails(recipients);
+        if (!invalidEmails.isEmpty()) {
+            result.put("success", false);
+            result.put("error", "以下邮箱格式不合法或未在系统中注册/状态异常，已拒绝发送: " + String.join(", ", invalidEmails));
+            return result;
+        }
+
+        try {
+            // 单个收件人使用其昵称称呼；群发时使用通用称呼「尊敬的用户」
+            String nickName = "尊敬的用户";
+            if (recipients.size() == 1) {
+                User user = findActiveUserByEmail(recipients.get(0));
+                if (user != null) {
+                    nickName = user.getNickName();
+                }
+            }
+            String html = renderSystemNotificationHtml(
+                    nickName, normalizeNotificationType(notificationType), content);
+            sendHtmlEmail(recipients, normalizeSystemSubject(subject), html);
+            result.put("success", true);
+            result.put("message", buildSystemSuccessMessage(recipients));
+            log.info("系统通知邮件发送成功: {} -> {} 位收件人", senderEmail, recipients.size());
+        } catch (Exception e) {
+            log.error("系统通知邮件发送失败: {}", e.getMessage(), e);
             result.put("success", false);
             result.put("error", "邮件发送失败: " + e.getMessage());
         }
@@ -368,6 +464,65 @@ public class EmailTools {
         context.setVariable("nickName", nickName);
         context.setVariable("greeting", greeting);
         return templateEngine.process(GREETING_TEMPLATE, context);
+    }
+
+    /**
+     * 基于 Thymeleaf 模版渲染系统通知邮件 HTML 正文。
+     * 通知正文先做 HTML 转义防止注入，再将换行转换为 <br/> 保留分段效果。
+     */
+    private String renderSystemNotificationHtml(String nickName, String notificationType, String content) {
+        Context context = new Context();
+        context.setVariable("nickName", nickName);
+        context.setVariable("notificationType", notificationType);
+        context.setVariable("content", escapeHtml(content).replace("\n", "<br/>"));
+        return templateEngine.process(SYSTEM_NOTIFICATION_TEMPLATE, context);
+    }
+
+    /**
+     * HTML 转义：通知正文由大模型生成，模版以 th:utext 渲染，转义防止 XSS 注入
+     */
+    private String escapeHtml(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    /**
+     * 归一化通知类型：不在允许范围内时使用通用「系统通知」
+     */
+    private String normalizeNotificationType(String notificationType) {
+        if (StringUtils.hasText(notificationType) && NOTIFICATION_TYPES.contains(notificationType.trim())) {
+            return notificationType.trim();
+        }
+        return "系统通知";
+    }
+
+    /**
+     * 归一化系统通知主题：大模型未生成时使用默认主题；超过 50 个字时截断保留前 50 个字
+     */
+    private String normalizeSystemSubject(String subject) {
+        if (!StringUtils.hasText(subject)) {
+            return SYSTEM_SUBJECT_DEFAULT;
+        }
+        String trimmed = subject.trim();
+        return trimmed.length() > SYSTEM_SUBJECT_MAX_LENGTH
+                ? trimmed.substring(0, SYSTEM_SUBJECT_MAX_LENGTH)
+                : trimmed;
+    }
+
+    /**
+     * 组装系统通知发送成功提示信息
+     */
+    private String buildSystemSuccessMessage(List<String> recipients) {
+        if (recipients.size() == 1) {
+            return "系统通知邮件已成功发送至 " + recipients.get(0);
+        }
+        return "系统通知邮件已通过密送（Bcc）成功发送至 " + recipients.size() + " 位系统用户，收件人之间互不可见邮箱";
     }
 
     /**

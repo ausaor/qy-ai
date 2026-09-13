@@ -10,7 +10,7 @@ public enum AgentType {
     ROUTER("router", "意图分类和路由分发"),
     TEXT_TO_SQL("text_to_sql", "自然语言转sql"),
     DOCUMENT_QA("document_qa", "文档问答（支持 RAG）"),
-    SEND_EMAIL("send_email", "发送邮件"),
+    SEND_EMAIL("send_email", "发送邮件（问候邮件、系统通知邮件）"),
     GENERAL("general", "通用对话");
 
     private final String id;

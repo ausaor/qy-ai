@@ -35,14 +35,18 @@ public class MultiAgentConfiguration {
     }
 
     /**
-     * 问候邮件发送技能（Agent Skills 技术，基于 Claude Code Agent Skills 规范）：
-     * 加载 classpath 下 skills/send-greeting-email/SKILL.md 中定义的邮件发送规范，
-     * 供 send_email Agent 通过 Skill 工具按需加载执行
+     * 邮件发送技能集合（Agent Skills 技术，基于 Claude Code Agent Skills 规范）：
+     * 加载 classpath 下 skills/ 中 send-greeting-email 与 send-system-notification 两个技能的 SKILL.md，
+     * 供 send_email Agent 通过 Skill 工具按需加载执行。
+     * 注意：SkillsTool 的 ToolCallback 工具名固定为 "Skill"，多个 SkillsTool 同时挂载会因重名触发
+     * "Multiple tools with the same name (Skill) found in ToolCallingChatOptions" 报错，
+     * 因此必须把多个技能资源合并到同一个 SkillsTool 中（其内部按 command 参数分发到对应技能）。
      */
     @Bean
-    public ToolCallback greetingEmailSkill() {
+    public ToolCallback mailSkillsTool() {
         return SkillsTool.builder()
                 .addSkillsResource(new ClassPathResource("skills/send-greeting-email/"))
+                .addSkillsResource(new ClassPathResource("skills/send-system-notification/"))
                 .build();
     }
 
@@ -101,14 +105,14 @@ public class MultiAgentConfiguration {
     }
 
     /**
-     * 邮件发送 Agent — 向系统用户发送问候邮件
-     * 挂载 SkillsTool（send-greeting-email 技能）与 EmailTools（收件人校验 + 发送）
+     * 邮件发送 Agent — 向系统用户发送问候邮件与系统通知邮件
+     * 挂载 SkillsTool（send-greeting-email / send-system-notification 技能）与 EmailTools（收件人校验 + 发送）
      */
     @Bean
     public ChatClient sendEmailAgent(
             @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
             EmailTools emailTools,
-            ToolCallback greetingEmailSkill,
+            ToolCallback mailSkillsTool,
             AgentRegistry registry) {
         ChatClient client = ChatClient.builder(model)
                 .defaultSystem(PromptConstant.SEND_EMAIL_PROMPT)
@@ -116,9 +120,9 @@ public class MultiAgentConfiguration {
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
                         new SimpleLoggerAdvisor()
                 )
-                .defaultTools(emailTools, greetingEmailSkill)
+                .defaultTools(emailTools, mailSkillsTool)
                 .build();
-        registry.register(AgentType.SEND_EMAIL, client, "发送邮件");
+        registry.register(AgentType.SEND_EMAIL, client, "发送邮件（问候邮件、系统通知邮件）");
         return client;
     }
 
@@ -157,7 +161,8 @@ public class MultiAgentConfiguration {
         }
         sb.append("""
                 \n路由规则:
-                - 用户要求发送邮件（向某人/指定邮箱发送问候、祝福等） → send_email
+                - 用户要求发送问候邮件（向某人/指定邮箱发送问候、祝福等） → send_email
+                - 用户要求发送系统通知邮件（系统上线、功能发布、系统维护、系统公告等） → send_email
                 - 用户查询系统数据 → text_to_sql
                 - 用户询问已上传的文档、文件内容 → document_qa
                 - 其他所有问题 → general
