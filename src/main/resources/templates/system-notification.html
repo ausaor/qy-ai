@@ -31,11 +31,11 @@
                     </td>
                 </tr>
 
-                <!-- 主体：称呼与通知内容 -->
+                <!-- 主体：开头敬语（大模型生成）与通知内容 -->
                 <tr>
                     <td style="padding: 28px 40px 16px;">
-                        <div style="font-size: 16px; color: #333333; line-height: 1.9;"
-                             th:text="${nickName} + '：'">尊敬的用户：</div>
+                        <div style="font-size: 15px; color: #2b3a37; line-height: 2; font-weight: 500;"
+                             th:text="${salutation}">尊敬的用户：</div>
                         <div style="font-size: 15px; color: #555555; line-height: 2; margin-top: 12px;"
                              th:utext="${content}">通知正文内容。</div>
                     </td>

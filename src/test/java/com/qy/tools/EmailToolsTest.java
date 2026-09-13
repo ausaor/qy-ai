@@ -168,7 +168,7 @@ class EmailToolsTest {
     void sendShouldRejectUnregisteredEmail() {
         when(userMapper.selectList(any())).thenReturn(List.of());
 
-        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("unknown@example.com"), "你好", "你好呀！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("unknown@example.com"), "你好", "亲爱的朋友：", "你好呀！");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         verify(mailSender, never()).send(any(MimeMessage.class));
@@ -177,7 +177,7 @@ class EmailToolsTest {
     @Test
     @DisplayName("发送问候邮件：@qy.com 结尾的内部邮箱应拒绝发送")
     void sendShouldRejectInternalEmail() {
-        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("internal@qy.com"), "你好", "你好呀！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("internal@qy.com"), "你好", "亲爱的朋友：", "你好呀！");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         assertNotNull(result.get("error"));
@@ -193,7 +193,7 @@ class EmailToolsTest {
                 .thenReturn("<html>问候邮件</html>");
         when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
-        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "你好", "愿你开心！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "你好", "亲爱的朋友：", "愿你开心！");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         verify(templateEngine).process(eq("greeting-email"), any());
@@ -211,7 +211,7 @@ class EmailToolsTest {
                 .thenReturn("<html>问候邮件</html>");
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "早安", "愿你开心！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "早安", "亲爱的朋友：", "愿你开心！");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         Address[] to = mimeMessage.getRecipients(Message.RecipientType.TO);
@@ -233,7 +233,7 @@ class EmailToolsTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         Map<String, Object> result = emailTools.sendGreetingEmail(
-                List.of("a@qq.com", "b@qq.com"), "全体问候", "大家好！");
+                List.of("a@qq.com", "b@qq.com"), "全体问候", "亲爱的朋友：", "大家好！");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         Address[] bcc = mimeMessage.getRecipients(Message.RecipientType.BCC);
@@ -253,7 +253,7 @@ class EmailToolsTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         String longSubject = "这是一段超过二十个字的主题用来验证截断逻辑是否正常工作";
-        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), longSubject, "愿你开心！");
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), longSubject, "亲爱的朋友：", "愿你开心！");
 
         String actualSubject = mimeMessage.getSubject();
         assertNotNull(actualSubject);
@@ -271,9 +271,46 @@ class EmailToolsTest {
                 .thenReturn("<html>问候邮件</html>");
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), null, "愿你开心！");
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), null, "亲爱的朋友：", "愿你开心！");
 
         assertEquals("来自青语的一份问候", mimeMessage.getSubject());
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：大模型生成的敬语应传入模版渲染")
+    void sendShouldPassSalutationToTemplate() {
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>问候邮件</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
+
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "早安", "春，您好：", "愿你开心！");
+
+        ArgumentCaptor<Context> captor = ArgumentCaptor.forClass(Context.class);
+        verify(templateEngine).process(eq("greeting-email"), captor.capture());
+        assertEquals("春，您好：", captor.getValue().getVariable("salutation"));
+        assertEquals("愿你开心！", captor.getValue().getVariable("greeting"));
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：未提供敬语时应使用默认称呼「亲爱的 + 昵称 + ：」")
+    void sendShouldUseDefaultSalutationWhenMissing() {
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(userMapper.selectOne(any()))
+                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>问候邮件</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
+
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "早安", null, "愿你开心！");
+
+        ArgumentCaptor<Context> captor = ArgumentCaptor.forClass(Context.class);
+        verify(templateEngine).process(eq("greeting-email"), captor.capture());
+        assertEquals("亲爱的 春：", captor.getValue().getVariable("salutation"));
     }
 
     // ==================== 发送系统通知邮件 ====================
@@ -284,7 +321,7 @@ class EmailToolsTest {
         when(userMapper.selectList(any())).thenReturn(List.of());
 
         Map<String, Object> result = emailTools.sendSystemNotification(
-                "系统维护", List.of("unknown@example.com"), "维护通知", "系统将于今晚维护。");
+                "系统维护", List.of("unknown@example.com"), "维护通知", "尊敬的用户：", "系统将于今晚维护。");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         verify(mailSender, never()).send(any(MimeMessage.class));
@@ -294,7 +331,7 @@ class EmailToolsTest {
     @DisplayName("发送系统通知：@qy.com 结尾的内部邮箱应拒绝发送")
     void sendNotificationShouldRejectInternalEmail() {
         Map<String, Object> result = emailTools.sendSystemNotification(
-                "系统维护", List.of("internal@qy.com"), "维护通知", "系统将于今晚维护。");
+                "系统维护", List.of("internal@qy.com"), "维护通知", "尊敬的用户：", "系统将于今晚维护。");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         assertNotNull(result.get("error"));
@@ -305,7 +342,7 @@ class EmailToolsTest {
     @DisplayName("发送系统通知：通知正文为空时应拒绝发送")
     void sendNotificationShouldRejectBlankContent() {
         Map<String, Object> result = emailTools.sendSystemNotification(
-                "系统维护", List.of("11111111@qq.com"), "维护通知", "");
+                "系统维护", List.of("11111111@qq.com"), "维护通知", "尊敬的用户：", "");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         verify(mailSender, never()).send(any(MimeMessage.class));
@@ -325,7 +362,7 @@ class EmailToolsTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         Map<String, Object> result = emailTools.sendSystemNotification(
-                "系统维护", List.of("11111111@qq.com"), "青语系统维护通知", "系统将于今晚 22:00 维护。");
+                "系统维护", List.of("11111111@qq.com"), "青语系统维护通知", "尊敬的用户：", "系统将于今晚 22:00 维护。");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         Address[] to = mimeMessage.getRecipients(Message.RecipientType.TO);
@@ -347,7 +384,7 @@ class EmailToolsTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         Map<String, Object> result = emailTools.sendSystemNotification(
-                "系统公告", List.of("a@qq.com", "b@qq.com"), "青语系统公告", "各位用户，青语新版本已上线。");
+                "系统公告", List.of("a@qq.com", "b@qq.com"), "青语系统公告", "尊敬的用户：", "各位用户，青语新版本已上线。");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         Address[] bcc = mimeMessage.getRecipients(Message.RecipientType.BCC);
@@ -369,7 +406,7 @@ class EmailToolsTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         String longSubject = "青语系统维护通知：为提供更稳定的服务，我们计划于本周六晚十点至次日凌晨两点对系统进行停机维护升级，期间所有服务将暂停使用，请各位用户合理安排使用时间并相互转告，感谢您的理解与支持";
-        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), longSubject, "维护内容。");
+        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), longSubject, "尊敬的用户：", "维护内容。");
 
         String actualSubject = mimeMessage.getSubject();
         assertNotNull(actualSubject);
@@ -389,7 +426,7 @@ class EmailToolsTest {
                 .thenReturn("<html>系统通知</html>");
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), null, "维护内容。");
+        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), null, "尊敬的用户：", "维护内容。");
 
         assertEquals("青语系统通知", mimeMessage.getSubject());
     }
@@ -405,10 +442,27 @@ class EmailToolsTest {
                 .thenReturn("<html>系统通知</html>");
         when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
-        emailTools.sendSystemNotification("随便的类型", List.of("11111111@qq.com"), "通知", "内容。");
+        emailTools.sendSystemNotification("随便的类型", List.of("11111111@qq.com"), "通知", "尊敬的各位用户：", "内容。");
 
         ArgumentCaptor<Context> captor = ArgumentCaptor.forClass(Context.class);
         verify(templateEngine).process(eq("system-notification"), captor.capture());
         assertEquals("系统通知", captor.getValue().getVariable("notificationType"));
+        assertEquals("尊敬的各位用户：", captor.getValue().getVariable("salutation"));
+    }
+
+    @Test
+    @DisplayName("发送系统通知：未提供敬语时应使用默认称呼「尊敬的用户：」")
+    void sendNotificationShouldUseDefaultSalutationWhenMissing() {
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(templateEngine.process(eq("system-notification"), any()))
+                .thenReturn("<html>系统通知</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
+
+        emailTools.sendSystemNotification("系统维护", List.of("11111111@qq.com"), "维护通知", null, "维护内容。");
+
+        ArgumentCaptor<Context> captor = ArgumentCaptor.forClass(Context.class);
+        verify(templateEngine).process(eq("system-notification"), captor.capture());
+        assertEquals("尊敬的用户：", captor.getValue().getVariable("salutation"));
     }
 }

@@ -163,7 +163,7 @@ public class EmailTools {
 
     /**
      * 发送问候邮件：使用 templates/greeting-email.html 模版渲染正文。
-     * 主题由大模型生成（不超过 20 个字，超长自动截断，未提供时使用默认主题）。
+     * 主题与开头敬语由大模型生成（主题不超过 20 个字，超长自动截断，未提供时使用默认主题；敬语未提供时使用默认称呼）。
      * 内部会再次强校验收件邮箱在系统中已注册，未注册直接拒绝，防止跳过校验步骤。
      * 以 @qy.com 结尾的系统内部邮箱不允许发送，一律拒绝。
      * 单个收件人使用 To 直发；多个收件人自动使用密送（Bcc），所有接收人互不可见对方的邮箱地址。
@@ -171,12 +171,14 @@ public class EmailTools {
     @Tool(name = "sendGreetingEmail", description = "向系统用户发送问候邮件。参数 emails 必须是 verifyRecipient 或 getAllUserEmails 校验通过后返回的注册邮箱列表；"
             + "内部会再次校验每个邮箱是否已注册，未注册将拒绝发送；@qy.com 结尾的系统内部邮箱一律拒绝发送。"
             + "多个收件人时自动使用密送（Bcc）发送，接收人之间互不可见邮箱；"
-            + "只有 1 个收件人时使用普通发送（To）。subject 为邮件主题，由你结合问候场景生成，不超过 20 个字。"
+            + "只有 1 个收件人时使用普通发送（To）。subject 为邮件主题、salutation 为邮件开头的敬语，均由你结合问候场景生成，主题不超过 20 个字；"
+            + "greeting 为问候正文，简洁温馨，正文中不要再包含敬语。"
             + "邮件正文使用问候模版渲染，发件邮箱和发件人名称由系统固定配置")
     public Map<String, Object> sendGreetingEmail(
             @ToolParam(description = "收件人邮箱列表（必须来自 verifyRecipient 或 getAllUserEmails 的校验结果，不得包含 @qy.com 结尾的邮箱）") List<String> emails,
             @ToolParam(description = "邮件主题，结合问候场景（节日/场合/用户意图）生成，不超过 20 个字") String subject,
-            @ToolParam(description = "问候语内容，简洁温馨，一两句话即可") String greeting) {
+            @ToolParam(description = "邮件开头的敬语，由你生成，如「亲爱的朋友：」，不超过 30 个字；未提供时使用默认称呼") String salutation,
+            @ToolParam(description = "问候正文内容，简洁温馨，一两句话即可；正文中不要再包含敬语") String greeting) {
 
         log.info("发送问候邮件: emails = {}, subject = {}", emails, subject);
         Map<String, Object> result = new HashMap<>();
@@ -220,7 +222,7 @@ public class EmailTools {
                     nickName = user.getNickName();
                 }
             }
-            String html = renderGreetingHtml(nickName, greeting);
+            String html = renderGreetingHtml(nickName, salutation, greeting);
             sendHtmlEmail(recipients, normalizeSubject(subject), html);
             result.put("success", true);
             result.put("message", buildSuccessMessage(recipients, nickName));
@@ -236,7 +238,7 @@ public class EmailTools {
     /**
      * 发送系统通知邮件：使用 templates/system-notification.html 模版渲染正文。
      * 用于系统上线、功能发布、系统维护、系统公告等官方通知场景。
-     * 主题与通知正文由大模型根据用户输入生成（主题不超过 50 个字，超长自动截断，未提供时使用默认主题）。
+     * 主题、开头敬语与通知正文由大模型根据用户输入生成（主题不超过 50 个字，超长自动截断，未提供时使用默认主题；敬语未提供时使用默认称呼）。
      * 内部会再次强校验收件邮箱在系统中已注册，未注册直接拒绝，防止跳过校验步骤。
      * 以 @qy.com 结尾的系统内部邮箱不允许发送，一律拒绝。
      * 单个收件人使用 To 直发；多个收件人自动使用密送（Bcc），所有接收人互不可见对方的邮箱地址。
@@ -245,13 +247,14 @@ public class EmailTools {
             + "参数 emails 必须是 verifyRecipient 或 getAllUserEmails 校验通过后返回的注册邮箱列表；"
             + "内部会再次校验每个邮箱是否已注册，未注册将拒绝发送；@qy.com 结尾的系统内部邮箱一律拒绝发送。"
             + "多个收件人时自动使用密送（Bcc）发送，接收人之间互不可见邮箱；只有 1 个收件人时使用普通发送（To）。"
-            + "subject 为邮件主题、content 为通知正文，均由你结合通知类型与用户输入生成，主题不超过 50 个字。"
-            + "邮件正文使用系统通知模版渲染，模版内固定包含项目名称「青语」与发送人「聴夏」")
+            + "subject 为邮件主题、salutation 为邮件开头的敬语、content 为通知正文，均由你结合通知类型与用户输入生成，主题不超过 50 个字；"
+            + "正文中不要再包含敬语。邮件正文使用系统通知模版渲染，模版内固定包含项目名称「青语」与发送人「聴夏」")
     public Map<String, Object> sendSystemNotification(
             @ToolParam(description = "通知类型，四选一：系统上线 / 功能发布 / 系统维护 / 系统公告") String notificationType,
             @ToolParam(description = "收件人邮箱列表（必须来自 verifyRecipient 或 getAllUserEmails 的校验结果，不得包含 @qy.com 结尾的邮箱）") List<String> emails,
             @ToolParam(description = "邮件主题，结合通知类型与内容生成，不超过 50 个字") String subject,
-            @ToolParam(description = "通知正文内容，正式清晰，包含通知关键信息（时间、影响范围、操作建议等），可分段表述") String content) {
+            @ToolParam(description = "邮件开头的敬语，由你生成，如「尊敬的用户：」，不超过 30 个字；未提供时使用默认称呼") String salutation,
+            @ToolParam(description = "通知正文内容，正式清晰，包含通知关键信息（时间、影响范围、操作建议等），可分段表述；正文中不要再包含敬语") String content) {
 
         log.info("发送系统通知邮件: type = {}, emails = {}, subject = {}", notificationType, emails, subject);
         Map<String, Object> result = new HashMap<>();
@@ -287,16 +290,8 @@ public class EmailTools {
         }
 
         try {
-            // 单个收件人使用其昵称称呼；群发时使用通用称呼「尊敬的用户」
-            String nickName = "尊敬的用户";
-            if (recipients.size() == 1) {
-                User user = findActiveUserByEmail(recipients.get(0));
-                if (user != null) {
-                    nickName = user.getNickName();
-                }
-            }
             String html = renderSystemNotificationHtml(
-                    nickName, normalizeNotificationType(notificationType), content);
+                    salutation, normalizeNotificationType(notificationType), content);
             sendHtmlEmail(recipients, normalizeSystemSubject(subject), html);
             result.put("success", true);
             result.put("message", buildSystemSuccessMessage(recipients));
@@ -457,25 +452,47 @@ public class EmailTools {
     }
 
     /**
-     * 基于 Thymeleaf 模版渲染问候邮件 HTML 正文
+     * 基于 Thymeleaf 模版渲染问候邮件 HTML 正文。
+     * 开头敬语由大模型生成（salutation），未提供时使用默认称呼「亲爱的 + 昵称 + ：」。
      */
-    private String renderGreetingHtml(String nickName, String greeting) {
+    private String renderGreetingHtml(String nickName, String salutation, String greeting) {
         Context context = new Context();
-        context.setVariable("nickName", nickName);
+        context.setVariable("salutation", resolveGreetingSalutation(salutation, nickName));
         context.setVariable("greeting", greeting);
         return templateEngine.process(GREETING_TEMPLATE, context);
     }
 
     /**
+     * 归一化问候邮件开头敬语：大模型未生成时使用默认称呼「亲爱的 + 昵称 + ：」
+     */
+    private String resolveGreetingSalutation(String salutation, String nickName) {
+        if (StringUtils.hasText(salutation)) {
+            return salutation.trim();
+        }
+        return "亲爱的 " + nickName + "：";
+    }
+
+    /**
      * 基于 Thymeleaf 模版渲染系统通知邮件 HTML 正文。
+     * 开头敬语由大模型生成（salutation），未提供时使用默认称呼「尊敬的用户：」。
      * 通知正文先做 HTML 转义防止注入，再将换行转换为 <br/> 保留分段效果。
      */
-    private String renderSystemNotificationHtml(String nickName, String notificationType, String content) {
+    private String renderSystemNotificationHtml(String salutation, String notificationType, String content) {
         Context context = new Context();
-        context.setVariable("nickName", nickName);
+        context.setVariable("salutation", resolveSystemSalutation(salutation));
         context.setVariable("notificationType", notificationType);
         context.setVariable("content", escapeHtml(content).replace("\n", "<br/>"));
         return templateEngine.process(SYSTEM_NOTIFICATION_TEMPLATE, context);
+    }
+
+    /**
+     * 归一化系统通知邮件开头敬语：大模型未生成时使用默认称呼「尊敬的用户：」
+     */
+    private String resolveSystemSalutation(String salutation) {
+        if (StringUtils.hasText(salutation)) {
+            return salutation.trim();
+        }
+        return "尊敬的用户：";
     }
 
     /**
