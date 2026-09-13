@@ -23,4 +23,9 @@ public class UserSession {
      * 用户昵称
      */
     private String nickName;
+
+    /**
+     * 角色
+     */
+    private String role;
 }

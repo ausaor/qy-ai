@@ -1,12 +1,15 @@
 package com.qy.controller;
 
+import com.qy.annotation.RequireRoles;
 import com.qy.enums.ResultCode;
+import com.qy.enums.RoleEnum;
 import com.qy.result.Result;
 import com.qy.result.ResultUtils;
 import com.qy.service.IDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,7 +45,8 @@ public class DocumentController {
     /**
      * 上传文档（支持多格式）
      */
-    @RequestMapping("/upload")
+    @RequireRoles(value = {RoleEnum.SUPER_ADMIN})
+    @PostMapping("/upload")
     public Result upload(@RequestParam("file") MultipartFile file) {
         try {
             String contentType = file.getContentType();
