@@ -43,13 +43,13 @@ public class AgentController {
     public Flux<ServerSentEvent<String>> agentChat(@PathVariable Long sessionId,
                                                    @RequestParam String content,
                                                    @RequestParam String model,
-                                                   @RequestParam String chatType,
-                                                   @RequestPart(required = false) List<MultipartFile> files) {
+                                                   @RequestParam String chatType) {
 
-        log.info("流式发送消息到会话: sessionId = {}, content = {}, files = {}",
-                sessionId, content, files != null ? files.size() : 0);
+        log.info("流式发送消息到会话: sessionId = {}, content = {}", sessionId, content);
         if (!StrUtil.equals(chatType, ChatType.AGENT.getCode())) {
-            throw new GlobalException("Invalid chat type: " + chatType);
+            return Flux.just(ServerSentEvent.<String>builder()
+                    .data("Invalid chat type: " + chatType)
+                    .build());
         }
 
         ChatRequest request = new ChatRequest();
@@ -57,7 +57,6 @@ public class AgentController {
         request.setModel(model);
         request.setRole(ChatRole.USER.getRole());
         request.setSessionId(sessionId);
-        request.setFiles(files);
         request.setChatType(chatType);
 
         return sseService.streamAgentChat(request);
