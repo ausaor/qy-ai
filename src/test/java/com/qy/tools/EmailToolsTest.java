@@ -1,8 +1,15 @@
 package com.qy.tools;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.qy.entity.User;
 import com.qy.mapper.UserMapper;
+import jakarta.mail.Address;
+import jakarta.mail.Message;
+import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +19,7 @@ import org.thymeleaf.TemplateEngine;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +39,16 @@ class EmailToolsTest {
     private TemplateEngine templateEngine;
 
     private EmailTools emailTools;
+
+    /**
+     * 纯 JUnit 环境（无 Spring 上下文）下初始化 MyBatis-Plus TableInfo 缓存。
+     * LambdaQueryWrapper 的 .in() 方法在构造时会立即解析实体字段映射，
+     * 未初始化 TableInfo 将抛出 "can not find lambda cache" 异常。
+     */
+    @BeforeAll
+    static void initMybatisPlusTableInfo() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), User.class);
+    }
 
     @BeforeEach
     void setUp() {
@@ -93,9 +111,51 @@ class EmailToolsTest {
     void verifyByEmailShouldFailWhenNotRegistered() {
         when(userMapper.selectOne(any())).thenReturn(null);
 
-        Map<String, Object> result = emailTools.verifyRecipient(null, "unknown@qy.com");
+        Map<String, Object> result = emailTools.verifyRecipient(null, "unknown@example.com");
 
         assertEquals(Boolean.FALSE, result.get("verified"));
+        assertNotNull(result.get("error"));
+    }
+
+    // ==================== 查询所有用户邮箱 ====================
+
+    @Test
+    @DisplayName("查询所有用户邮箱：应返回状态正常用户的邮箱列表")
+    void getAllUserEmailsShouldReturnActiveEmails() {
+        when(userMapper.selectList(any())).thenReturn(List.of(
+                buildUser("A", "甲", "a@qq.com"),
+                buildUser("B", "乙", "b@qq.com")));
+
+        Map<String, Object> result = emailTools.getAllUserEmails();
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        assertEquals(2, result.get("total"));
+        assertEquals(List.of("a@qq.com", "b@qq.com"), result.get("emails"));
+    }
+
+    @Test
+    @DisplayName("查询所有用户邮箱：应过滤掉 @qy.com 结尾的系统内部邮箱")
+    void getAllUserEmailsShouldFilterInternalEmails() {
+        when(userMapper.selectList(any())).thenReturn(List.of(
+                buildUser("A", "甲", "a@qq.com"),
+                buildUser("B", "乙", "internal@qy.com"),
+                buildUser("C", "丙", "c@163.com")));
+
+        Map<String, Object> result = emailTools.getAllUserEmails();
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        assertEquals(2, result.get("total"));
+        assertEquals(List.of("a@qq.com", "c@163.com"), result.get("emails"));
+    }
+
+    @Test
+    @DisplayName("查询所有用户邮箱：无状态正常用户时应返回失败")
+    void getAllUserEmailsShouldFailWhenEmpty() {
+        when(userMapper.selectList(any())).thenReturn(List.of());
+
+        Map<String, Object> result = emailTools.getAllUserEmails();
+
+        assertEquals(Boolean.FALSE, result.get("success"));
         assertNotNull(result.get("error"));
     }
 
@@ -104,27 +164,113 @@ class EmailToolsTest {
     @Test
     @DisplayName("发送问候邮件：邮箱未注册时应拒绝发送")
     void sendShouldRejectUnregisteredEmail() {
-        when(userMapper.selectOne(any())).thenReturn(null);
+        when(userMapper.selectList(any())).thenReturn(List.of());
 
-        Map<String, Object> result = emailTools.sendGreetingEmail("unknown@qy.com", "你好呀！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("unknown@example.com"), "你好", "你好呀！");
 
         assertEquals(Boolean.FALSE, result.get("success"));
         verify(mailSender, never()).send(any(MimeMessage.class));
     }
 
     @Test
+    @DisplayName("发送问候邮件：@qy.com 结尾的内部邮箱应拒绝发送")
+    void sendShouldRejectInternalEmail() {
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("internal@qy.com"), "你好", "你好呀！");
+
+        assertEquals(Boolean.FALSE, result.get("success"));
+        assertNotNull(result.get("error"));
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
     @DisplayName("发送问候邮件：邮箱已注册时应渲染模版并发送")
     void sendShouldRenderTemplateAndSend() {
-        when(userMapper.selectOne(any()))
-                .thenReturn(buildUser("Spring", "春", "11111111@qq.com"));
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
         when(templateEngine.process(eq("greeting-email"), any()))
                 .thenReturn("<html>问候邮件</html>");
         when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
-        Map<String, Object> result = emailTools.sendGreetingEmail("11111111@qq.com", "愿你开心！");
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "你好", "愿你开心！");
 
         assertEquals(Boolean.TRUE, result.get("success"));
         verify(templateEngine).process(eq("greeting-email"), any());
         verify(mailSender).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：单个收件人应使用 To 直发，且不使用 Bcc")
+    void sendShouldUseToForSingleRecipient() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>问候邮件</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        Map<String, Object> result = emailTools.sendGreetingEmail(List.of("11111111@qq.com"), "早安", "愿你开心！");
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        Address[] to = mimeMessage.getRecipients(Message.RecipientType.TO);
+        assertEquals(1, to.length);
+        assertNull(mimeMessage.getRecipients(Message.RecipientType.BCC));
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：多个收件人应使用密送 Bcc 发送，保护邮箱隐私")
+    void sendShouldUseBccForMultipleRecipients() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any())).thenReturn(List.of(
+                buildUser("A", "甲", "a@qq.com"),
+                buildUser("B", "乙", "b@qq.com")));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>群发问候</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        Map<String, Object> result = emailTools.sendGreetingEmail(
+                List.of("a@qq.com", "b@qq.com"), "全体问候", "大家好！");
+
+        assertEquals(Boolean.TRUE, result.get("success"));
+        Address[] bcc = mimeMessage.getRecipients(Message.RecipientType.BCC);
+        assertEquals(2, bcc.length);
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：主题超过 20 个字时应截断保留前 20 个字")
+    void sendShouldTruncateLongSubject() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>问候邮件</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        String longSubject = "这是一段超过二十个字的主题用来验证截断逻辑是否正常工作";
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), longSubject, "愿你开心！");
+
+        String actualSubject = mimeMessage.getSubject();
+        assertNotNull(actualSubject);
+        assertEquals(20, actualSubject.length());
+    }
+
+    @Test
+    @DisplayName("发送问候邮件：未提供主题时应使用默认主题")
+    void sendShouldUseDefaultSubjectWhenMissing() throws Exception {
+        Session session = Session.getInstance(new Properties());
+        MimeMessage mimeMessage = new MimeMessage(session);
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(buildUser("Spring", "春", "11111111@qq.com")));
+        when(templateEngine.process(eq("greeting-email"), any()))
+                .thenReturn("<html>问候邮件</html>");
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        emailTools.sendGreetingEmail(List.of("11111111@qq.com"), null, "愿你开心！");
+
+        assertEquals("来自青语的一份问候", mimeMessage.getSubject());
     }
 }
