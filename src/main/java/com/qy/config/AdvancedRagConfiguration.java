@@ -2,6 +2,8 @@ package com.qy.config;
 
 import com.qy.rag.augmenter.CitationQueryAugmenter;
 import com.qy.rag.joiner.RrfDocumentJoiner;
+import com.qy.rag.observer.LoggingQueryExpander;
+import com.qy.rag.observer.LoggingQueryTransformer;
 import com.qy.rag.postprocessor.LlmRerankingPostProcessor;
 import com.qy.rag.retrieval.Bm25DocumentRetriever;
 import com.qy.rag.retrieval.HybridDocumentRetriever;
@@ -63,17 +65,22 @@ public class AdvancedRagConfiguration {
                 .defaultOptions(OpenAiChatOptions.builder().model("qwen3.6-plus"));
 
         return RetrievalAugmentationAdvisor.builder()
+                // 用日志装饰器包裹，打印查询改写/扩展前后的内容
                 .queryTransformers(
-                        RewriteQueryTransformer.builder()
-                                .chatClientBuilder(ragChatClientBuilder)
-                                .build()
+                        new LoggingQueryTransformer(
+                                RewriteQueryTransformer.builder()
+                                        .chatClientBuilder(ragChatClientBuilder)
+                                        .build()
+                        )
                 )
                 .queryExpander(
-                        MultiQueryExpander.builder()
-                                .chatClientBuilder(ragChatClientBuilder)
-                                .numberOfQueries(3)
-                                .includeOriginal(true)
-                                .build()
+                        new LoggingQueryExpander(
+                                MultiQueryExpander.builder()
+                                        .chatClientBuilder(ragChatClientBuilder)
+                                        .numberOfQueries(3)
+                                        .includeOriginal(true)
+                                        .build()
+                        )
                 )
                 .documentRetriever(hybridRetriever)
                 .documentJoiner(new RrfDocumentJoiner())
