@@ -105,9 +105,13 @@ public class SseServiceImpl implements ISseService {
         // 将会话 ID 放入 ToolContext，供 AgentRouterTool 路由到子 Agent 时继续传递
 
         UserSession session = SessionContext.getSession();
+        String role = session != null ? session.getRole() : null;
+
         String conversationId = (session != null ? session.getUserId() : "anonymous") + "-" + chatRequest.getSessionId();
         Map<String, Object> toolContext = new HashMap<>();
         toolContext.put("conversationId", conversationId);
+        // 将当前用户角色放入 ToolContext，供 AgentRouterTool 路由时进行权限校验
+        toolContext.put("role", role);
 
         // 累积完整回复内容
         StringBuilder contentBuilder = new StringBuilder();

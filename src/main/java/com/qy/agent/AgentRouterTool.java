@@ -2,6 +2,7 @@ package com.qy.agent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.qy.enums.RoleEnum;
 import com.qy.tools.TextToSqlTools;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -73,6 +74,15 @@ public class AgentRouterTool {
             }
         }
 
+        // 权限校验：send_email 仅 SUPER_ADMIN 可用，text_to_sql 仅 SUPER_ADMIN 或 ADMIN 可用
+        Object roleObj = toolContext.getContext().get("role");
+        String role = roleObj != null ? roleObj.toString() : null;
+        String permissionDenied = checkRoutePermission(agentName, role);
+        if (permissionDenied != null) {
+            log.warn("路由权限校验失败: agentName = {}, role = {}", agentName, role);
+            return permissionDenied;
+        }
+
         try {
             AgentType type = AgentType.fromId(agentName);
             ChatClient agent = registry.getAgent(type);
@@ -103,6 +113,24 @@ public class AgentRouterTool {
             log.error("Agent {} 调用失败: {}", agentName, e.getMessage());
             return "抱歉，处理您的请求时出现了问题，请稍后再试。";
         }
+    }
+
+    /**
+     * 路由权限校验：
+     * send_email 仅限 SUPER_ADMIN；text_to_sql 仅限 SUPER_ADMIN 或 ADMIN。
+     * 校验不通过时返回拒绝文案（供 Router 原样输出给用户），通过时返回 null
+     */
+    private String checkRoutePermission(String agentName, String role) {
+        if (AgentType.SEND_EMAIL.getId().equals(agentName)
+                && !RoleEnum.SUPER_ADMIN.getCode().equals(role)) {
+            return "抱歉，发送邮件功能仅限超级管理员（SUPER_ADMIN）使用，您当前没有操作权限。";
+        }
+        if (AgentType.TEXT_TO_SQL.getId().equals(agentName)
+                && !RoleEnum.SUPER_ADMIN.getCode().equals(role)
+                && !RoleEnum.ADMIN.getCode().equals(role)) {
+            return "抱歉，数据查询功能仅限超级管理员（SUPER_ADMIN）或系统管理员（ADMIN）使用，您当前没有操作权限。";
+        }
+        return null;
     }
 
     /**
