@@ -32,6 +32,8 @@ public class LlmRerankingPostProcessor implements DocumentPostProcessor {
         this.topK = topK;
     }
 
+    private static final int MAX_RERANK_DOCS = 15;
+
     private static final String RERANK_PROMPT_TEMPLATE = """
             给定用户查询和以下文档片段，请按与查询的相关性从高到低排序。
             只返回文档编号列表，用逗号分隔，不要添加任何解释。
@@ -55,14 +57,20 @@ public class LlmRerankingPostProcessor implements DocumentPostProcessor {
             return documents;
         }
 
+        // RRF 融合结果已按相关性粗略排序，只取前 MAX_RERANK_DOCS 个交给 LLM 精排，
+        // 避免 prompt 过长导致模型推理超时（DashScope 网关单请求约 60s 超时）
+        List<Document> candidates = documents.size() > MAX_RERANK_DOCS
+                ? new ArrayList<>(documents.subList(0, MAX_RERANK_DOCS))
+                : documents;
+
         try {
             // 构建文档编号列表
             StringBuilder docList = new StringBuilder();
-            for (int i = 0; i < documents.size(); i++) {
-                String content = documents.get(i).getText();
-                // 截取前 200 字符避免 prompt 过长
-                if (content.length() > 200) {
-                    content = content.substring(0, 200) + "...";
+            for (int i = 0; i < candidates.size(); i++) {
+                String content = candidates.get(i).getText();
+                // 截取前 100 字符避免 prompt 过长
+                if (content.length() > 100) {
+                    content = content.substring(0, 100) + "...";
                 }
                 docList.append(String.format("[%d] %s\n", i + 1, content));
             }
@@ -78,19 +86,19 @@ public class LlmRerankingPostProcessor implements DocumentPostProcessor {
                     .content();
 
             // 解析排序结果
-            List<Integer> rankedIndices = parseRanking(response, documents.size());
+            List<Integer> rankedIndices = parseRanking(response, candidates.size());
 
             List<Document> reranked = rankedIndices.stream()
-                    .filter(i -> i >= 0 && i < documents.size())
-                    .map(documents::get)
+                    .filter(i -> i >= 0 && i < candidates.size())
+                    .map(candidates::get)
                     .limit(topK)
                     .collect(Collectors.toList());
 
-            log.info("LLM 重排序完成: {} → {} 个文档", documents.size(), reranked.size());
+            log.info("LLM 重排序完成: {} → {} 个文档", candidates.size(), reranked.size());
             return reranked.isEmpty() ? documents.subList(0, Math.min(topK, documents.size())) : reranked;
 
         } catch (Exception e) {
-            log.warn("LLM 重排序失败，回退到原始顺序: {}", e.getMessage());
+            log.warn("LLM 重排序失败，回退到原始顺序: {} - {}", e.getClass().getSimpleName(), e.getMessage(), e);
             return documents.subList(0, Math.min(topK, documents.size()));
         }
     }

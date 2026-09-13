@@ -19,6 +19,7 @@ import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQuery
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -58,11 +59,22 @@ public class AdvancedRagConfiguration {
     @Bean
     public RetrievalAugmentationAdvisor advancedRagAdvisor(
             HybridDocumentRetriever hybridRetriever,
-            @Qualifier("qianwenChatModel") OpenAiChatModel model) {
+            @Qualifier("qianwenChatModel") OpenAiChatModel model,
+            @Value("${spring.ai.qianwen.chat.options.rerank-model:qwen-turbo}") String rerankModel,
+            @Value("${spring.ai.assistant.system-prompt}") String systemPrompt) {
 
         // 用于查询改写和扩展的 ChatClient Builder
         ChatClient.Builder ragChatClientBuilder = ChatClient.builder(model)
                 .defaultOptions(OpenAiChatOptions.builder().model("qwen3.6-plus"));
+
+        // 用于重排序的 ChatClient Builder：独立使用轻量快速模型（如 qwen-turbo）并限制输出长度，
+        // 避免大模型处理长文档列表时推理超时（DashScope 网关单请求约 60s 超时）
+        ChatClient.Builder rerankChatClientBuilder = ChatClient.builder(model)
+                .defaultSystem(systemPrompt)
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model(rerankModel)
+                        .temperature(0.0)
+                        .maxTokens(50));
 
         return RetrievalAugmentationAdvisor.builder()
                 // 用日志装饰器包裹，打印查询改写/扩展前后的内容
@@ -85,7 +97,7 @@ public class AdvancedRagConfiguration {
                 .documentRetriever(hybridRetriever)
                 .documentJoiner(new RrfDocumentJoiner())
                 .documentPostProcessors(
-                        new LlmRerankingPostProcessor(ragChatClientBuilder, 5)
+                        new LlmRerankingPostProcessor(rerankChatClientBuilder, 5)
                 )
                 .queryAugmenter(new CitationQueryAugmenter())
                 .build();
