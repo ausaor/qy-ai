@@ -5,22 +5,26 @@ import com.qy.agent.AgentRouterTool;
 import com.qy.agent.AgentType;
 import com.qy.contant.PromptConstant;
 import com.qy.tools.CommonTools;
+import com.qy.tools.EmailTools;
 import com.qy.tools.TextToSqlTools;
+import org.springaicommunity.agent.tools.SkillsTool;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.io.ClassPathResource;
 
 /**
  * 多 Agent 系统配置
- * 定义 Router Agent 和 4 个专业 Agent 的 ChatClient bean
+ * 定义 Router Agent 和 5 个专业 Agent 的 ChatClient bean
  */
 @Configuration
 public class MultiAgentConfiguration {
@@ -28,6 +32,18 @@ public class MultiAgentConfiguration {
     @Bean
     public AgentRegistry agentRegistry() {
         return new AgentRegistry();
+    }
+
+    /**
+     * 问候邮件发送技能（Agent Skills 技术，基于 Claude Code Agent Skills 规范）：
+     * 加载 classpath 下 skills/send-greeting-email/SKILL.md 中定义的邮件发送规范，
+     * 供 send_email Agent 通过 Skill 工具按需加载执行
+     */
+    @Bean
+    public ToolCallback greetingEmailSkill() {
+        return SkillsTool.builder()
+                .addSkillsResource(new ClassPathResource("skills/send-greeting-email/"))
+                .build();
     }
 
     /**
@@ -85,6 +101,28 @@ public class MultiAgentConfiguration {
     }
 
     /**
+     * 邮件发送 Agent — 向系统用户发送问候邮件
+     * 挂载 SkillsTool（send-greeting-email 技能）与 EmailTools（收件人校验 + 发送）
+     */
+    @Bean
+    public ChatClient sendEmailAgent(
+            @Qualifier("qianwenChatModel") OpenAiChatModel model, ChatMemory chatMemory,
+            EmailTools emailTools,
+            ToolCallback greetingEmailSkill,
+            AgentRegistry registry) {
+        ChatClient client = ChatClient.builder(model)
+                .defaultSystem(PromptConstant.SEND_EMAIL_PROMPT)
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new SimpleLoggerAdvisor()
+                )
+                .defaultTools(emailTools, greetingEmailSkill)
+                .build();
+        registry.register(AgentType.SEND_EMAIL, client, "发送邮件");
+        return client;
+    }
+
+    /**
      * Router Agent — 意图分发入口
      * DependsOn 确保所有子 Agent 先注册到 Registry，再构建路由提示词
      * 注意：Router 不挂载 MessageChatMemoryAdvisor。路由决策只依赖当前查询，
@@ -92,7 +130,7 @@ public class MultiAgentConfiguration {
      * 自行编造答案；多轮指代由子 Agent（如 general）的记忆负责补全。
      */
     @Bean
-    @DependsOn({"generalAgent", "textToSqlAgent", "documentQaAgent"})
+    @DependsOn({"generalAgent", "textToSqlAgent", "documentQaAgent", "sendEmailAgent"})
     public ChatClient routerAgent(
             @Qualifier("qianwenChatModel") OpenAiChatModel model,
             AgentRouterTool routerTool, AgentRegistry registry) {
@@ -119,11 +157,12 @@ public class MultiAgentConfiguration {
         }
         sb.append("""
                 \n路由规则:
+                - 用户要求发送邮件（向某人/指定邮箱发送问候、祝福等） → send_email
                 - 用户查询系统数据 → text_to_sql
                 - 用户询问已上传的文档、文件内容 → document_qa
                 - 其他所有问题 → general
                 
-                重要：text_to_sql、document_qa、general 只是 Agent 名称（即 agentName 参数的取值），
+                重要：text_to_sql、document_qa、send_email、general 只是 Agent 名称（即 agentName 参数的取值），
                 不是工具名称，严禁把它们当作工具直接调用；必须通过 routeToAgent 工具并传入 agentName 参数完成分发。
                 """);
         return sb.toString();

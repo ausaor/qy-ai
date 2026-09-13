@@ -22,6 +22,26 @@ spring:
       port: 6379
       timeout: 5000ms
 
+  mail:
+    host: smtp.qq.com          # QQ 邮箱 SMTP 服务器地址
+    port: 465                  # SMTP 端口：465 = 隐式 SSL；若改用 STARTTLS 请改 587 并调整下方 ssl 配置
+    username: qingyu017@qq.com # 发件人邮箱（QQ邮箱地址）
+    password: ${MAIL_PASSWORD:} # 授权码（非邮箱密码），必须通过环境变量/启动参数注入，禁止明文提交
+    protocol: smtp             # 邮件协议
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true            # 启用认证
+          ssl.enable: true      # 465 端口走隐式 SSL；与 starttls 互斥，勿同时配置
+          connectiontimeout: 5000  # 建立连接超时（毫秒）
+          timeout: 5000            # 读取响应超时（毫秒）
+          writetimeout: 5000       # 写入数据超时（毫秒）
+
+  # Thymeleaf 配置（prefix/suffix/mode/encoding 均为 Boot 默认值，无需显式配置）
+  thymeleaf:
+    cache: false  # 开发环境关闭缓存，修改模板即时生效；生产环境默认开启缓存
+
 
 jwt:
   accessToken:

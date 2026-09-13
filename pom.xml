@@ -34,6 +34,7 @@
         <spring-ai.version>2.0.1</spring-ai.version>
         <openai-java.version>4.39.1</openai-java.version>
         <jedis.version>7.4.1</jedis.version>
+        <spring-ai-agent-utils.version>0.12.0</spring-ai-agent-utils.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -95,6 +96,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
+
+        <!-- 邮件发送：基于 Jakarta Mail（Angus Mail），支持 SMTP 发送邮件（验证码/通知/告警等场景） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Thymeleaf 模板引擎：服务端页面渲染与邮件 HTML 正文模板 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
 
         <!-- Redis 聊天记忆持久化，排除 Lettuce 改用 Jedis -->
@@ -190,6 +203,14 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-rag</artifactId>
+        </dependency>
+
+        <!-- Agent Skills 技术：SkillsTool 使模型按需发现并加载 Markdown 定义的技能模块（基于 Claude Code Agent Skills 规范） -->
+        <!-- 官方 Spring AI 2.0.1 BOM 尚未包含 skills artifact，使用 Spring AI 社区官方库（其底层依赖 spring-ai-client-chat 2.0.1，与本项目一致） -->
+        <dependency>
+            <groupId>org.springaicommunity</groupId>
+            <artifactId>spring-ai-agent-utils</artifactId>
+            <version>${spring-ai-agent-utils.version}</version>
         </dependency>
     </dependencies>
 

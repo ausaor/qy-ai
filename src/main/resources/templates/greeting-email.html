@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>青语 · 问候</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;">
+<!-- 邮件外层容器：邮件客户端兼容的 table 布局 -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color: #f4f7f6; padding: 32px 16px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+                   style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px rgba(22, 137, 122, 0.08);">
+
+                <!-- 顶部横幅：青绿色渐变，展示项目名称「青语」 -->
+                <tr>
+                    <td align="center"
+                        style="background: linear-gradient(135deg, #2bb3a3 0%, #16897a 100%); padding: 48px 32px 40px;">
+                        <div style="font-size: 32px; font-weight: 600; letter-spacing: 12px; color: #ffffff; margin-bottom: 8px;">青 语</div>
+                        <div style="font-size: 13px; letter-spacing: 3px; color: rgba(255, 255, 255, 0.85);">QING YU · 一份来自青语的问候</div>
+                    </td>
+                </tr>
+
+                <!-- 主体：称呼与问候内容 -->
+                <tr>
+                    <td style="padding: 40px 40px 16px;">
+                        <div style="font-size: 16px; color: #333333; line-height: 1.9;"
+                             th:text="'亲爱的 ' + ${nickName} + '：'">亲爱的朋友：</div>
+                        <div style="font-size: 16px; color: #555555; line-height: 1.9; margin-top: 12px;"
+                             th:text="${greeting}">愿你今天也有好心情。</div>
+                    </td>
+                </tr>
+
+                <!-- 落款：发送人「聴夏」 -->
+                <tr>
+                    <td align="right" style="padding: 8px 40px 16px;">
+                        <div style="font-size: 15px; color: #16897a; font-weight: 500;">聴夏</div>
+                        <div style="font-size: 12px; color: #9aa5a2; margin-top: 4px;">敬上</div>
+                    </td>
+                </tr>
+
+                <!-- 分隔线 -->
+                <tr>
+                    <td style="padding: 0 40px;">
+                        <div style="border-top: 1px solid #eef2f1;"></div>
+                    </td>
+                </tr>
+
+                <!-- 页脚 -->
+                <tr>
+                    <td align="center" style="padding: 24px 40px 36px;">
+                        <div style="font-size: 12px; color: #9aa5a2; line-height: 2;">本邮件由 青语 · QyAI 系统自动发送 · 发送人 聴夏</div>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
